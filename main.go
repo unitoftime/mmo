@@ -1,12 +1,14 @@
 package main
 
+//go:generate packer --input images --stats
+
 import (
 	"os"
-	"image"
-	_ "image/png"
 
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
+
+	"github.com/jstewart7/mmo/engine/asset"
 )
 
 func main() {
@@ -28,7 +30,14 @@ func runGame() {
 
 	win.SetSmooth(false)
 
-	manSprite, err := getSprite("man.png")
+	load := asset.NewLoad(os.DirFS("./"))
+
+	spritesheet, err := load.Spritesheet("packed.json")
+	if err != nil {
+		panic(err)
+	}
+
+	manSprite, err := spritesheet.Get("man1.png")
 	if err != nil {
 		panic(err)
 	}
@@ -54,21 +63,4 @@ func runGame() {
 
 		win.Update()
 	}
-}
-
-func getSprite(path string) (*pixel.Sprite, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	img, _, err := image.Decode(file)
-	if err != nil {
-		return nil, err
-	}
-
-	pic := pixel.PictureDataFromImage(img)
-
-	return pixel.NewSprite(pic, pic.Bounds()), nil
 }
