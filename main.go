@@ -9,6 +9,7 @@ import (
 	"github.com/faiface/pixel/pixelgl"
 
 	"github.com/jstewart7/mmo/engine/asset"
+	"github.com/jstewart7/mmo/engine/render"
 )
 
 func main() {
@@ -64,16 +65,29 @@ func runGame() {
 		Right: pixelgl.KeyD,
 	}))
 
+
+	camera := render.NewCamera(win, 0, 0)
+	zoomSpeed := 0.1
 	for !win.JustPressed(pixelgl.KeyEscape) {
 		win.Clear(pixel.RGB(0, 0, 0))
+
+		scroll := win.MouseScroll()
+		if scroll.Y != 0 {
+			camera.Zoom += zoomSpeed * scroll.Y
+		}
 
 		for i := range people {
 			people[i].HandleInput(win)
 		}
 
+		camera.Position = people[0].Position
+		camera.Update()
+
+		win.SetMatrix(camera.Mat())
 		for i := range people {
 			people[i].Draw(win)
 		}
+		win.SetMatrix(pixel.IM)
 
 		win.Update()
 	}
