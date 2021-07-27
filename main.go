@@ -43,24 +43,75 @@ func runGame() {
 	}
 	manPosition := win.Bounds().Center()
 
+	hatManSprite, err := spritesheet.Get("man2.png")
+	if err != nil {
+		panic(err)
+	}
+	hatManPosition := win.Bounds().Center()
+
+	people := make([]Person, 0)
+	people = append(people, NewPerson(manSprite, manPosition, Keybinds{
+		Up: pixelgl.KeyUp,
+		Down: pixelgl.KeyDown,
+		Left: pixelgl.KeyLeft,
+		Right: pixelgl.KeyRight,
+	}))
+
+	people = append(people, NewPerson(hatManSprite, hatManPosition, Keybinds{
+		Up: pixelgl.KeyW,
+		Down: pixelgl.KeyS,
+		Left: pixelgl.KeyA,
+		Right: pixelgl.KeyD,
+	}))
+
 	for !win.JustPressed(pixelgl.KeyEscape) {
 		win.Clear(pixel.RGB(0, 0, 0))
 
-		if win.Pressed(pixelgl.KeyLeft) {
-			manPosition.X -= 2.0
-		}
-		if win.Pressed(pixelgl.KeyRight) {
-			manPosition.X += 2.0
-		}
-		if win.Pressed(pixelgl.KeyUp) {
-			manPosition.Y += 2.0
-		}
-		if win.Pressed(pixelgl.KeyDown) {
-			manPosition.Y -= 2.0
+		for i := range people {
+			people[i].HandleInput(win)
 		}
 
-		manSprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 2.0).Moved(manPosition))
+		for i := range people {
+			people[i].Draw(win)
+		}
 
 		win.Update()
+	}
+}
+
+type Keybinds struct {
+	Up, Down, Left, Right pixelgl.Button
+}
+
+type Person struct {
+	Sprite *pixel.Sprite
+	Position pixel.Vec
+	Keybinds Keybinds
+}
+
+func NewPerson(sprite *pixel.Sprite, position pixel.Vec, keybinds Keybinds) Person {
+	return Person{
+		Sprite: sprite,
+		Position: position,
+		Keybinds: keybinds,
+	}
+}
+
+func (p *Person) Draw(win *pixelgl.Window) {
+	p.Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 2.0).Moved(p.Position))
+}
+
+func (p *Person) HandleInput(win *pixelgl.Window) {
+	if win.Pressed(p.Keybinds.Left) {
+		p.Position.X -= 2.0
+	}
+	if win.Pressed(p.Keybinds.Right) {
+		p.Position.X += 2.0
+	}
+	if win.Pressed(p.Keybinds.Up) {
+		p.Position.Y += 2.0
+	}
+	if win.Pressed(p.Keybinds.Down) {
+		p.Position.Y -= 2.0
 	}
 }
