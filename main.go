@@ -10,6 +10,7 @@ import (
 
 	"github.com/jstewart7/mmo/engine/asset"
 	"github.com/jstewart7/mmo/engine/render"
+	"github.com/jstewart7/mmo/engine/tilemap"
 )
 
 func main() {
@@ -66,6 +67,26 @@ func runGame() {
 	}))
 
 
+	grassSprite, err := spritesheet.Get("grass.png")
+	if err != nil {
+		panic(err)
+	}
+	tileSize := 16
+	mapSize := 100
+	tiles := make([][]tilemap.Tile, mapSize, mapSize)
+	for x := range tiles {
+		tiles[x] = make([]tilemap.Tile, mapSize, mapSize)
+		for y := range tiles[x] {
+			tiles[x][y] = tilemap.Tile{
+				Type: 0,
+				Sprite: grassSprite,
+			}
+		}
+	}
+	batch := pixel.NewBatch(&pixel.TrianglesData{}, spritesheet.Picture())
+	tmap := tilemap.New(tiles, batch, tileSize)
+	tmap.Rebatch()
+
 	camera := render.NewCamera(win, 0, 0)
 	zoomSpeed := 0.1
 	for !win.JustPressed(pixelgl.KeyEscape) {
@@ -84,6 +105,7 @@ func runGame() {
 		camera.Update()
 
 		win.SetMatrix(camera.Mat())
+		tmap.Draw(win)
 		for i := range people {
 			people[i].Draw(win)
 		}
