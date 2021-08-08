@@ -5,17 +5,16 @@ package main
 import (
 	"os"
 	"time"
-	"math"
 	"log"
 	"context"
 
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
 
+	"github.com/jstewart7/mmo"
 	"github.com/jstewart7/mmo/engine/asset"
 	"github.com/jstewart7/mmo/engine/render"
 	"github.com/jstewart7/mmo/engine/tilemap"
-	"github.com/jstewart7/mmo/engine/pgen"
 
 	"nhooyr.io/websocket"
 )
@@ -77,50 +76,24 @@ func runGame() {
 
 	// Create Tilemap
 	seed := time.Now().UTC().UnixNano()
-	octaves := []pgen.Octave{
-		pgen.Octave{0.01, 0.6},
-		pgen.Octave{0.05, 0.3},
-		pgen.Octave{0.1, 0.07},
-		pgen.Octave{0.2, 0.02},
-		pgen.Octave{0.4, 0.01},
-	}
-	exponent := 0.8
-	terrain := pgen.NewNoiseMap(seed, octaves, exponent)
-
-	waterLevel := 0.5
-	beachLevel := waterLevel + 0.1
-
-	islandExponent := 2.0
-	tileSize := 16
 	mapSize := 1000
-	tiles := make([][]tilemap.Tile, mapSize, mapSize)
-	for x := range tiles {
-		tiles[x] = make([]tilemap.Tile, mapSize, mapSize)
-		for y := range tiles[x] {
+	tileSize := 16
+	tmap := mmo.CreateTilemap(seed, mapSize, tileSize)
 
-			height := terrain.Get(x, y)
+	grassTile, err := spritesheet.Get("grass.png")
+	check(err)
+	dirtTile, err := spritesheet.Get("dirt.png")
+	check(err)
+	waterTile, err := spritesheet.Get("water.png")
+	check(err)
 
-			// Modify height to represent an island
-			{
-				dx := float64(x)/float64(mapSize) - 0.5
-				dy := float64(y)/float64(mapSize) - 0.5
-				d := math.Sqrt(dx * dx + dy * dy) * 2
-				d = math.Pow(d, islandExponent)
-				height = (1 - d + height) / 2
-			}
+	tmapRender := render.NewTilemapRender(spritesheet, map[tilemap.TileType]*pixel.Sprite{
+		mmo.GrassTile: grassTile,
+		mmo.DirtTile: dirtTile,
+		mmo.WaterTile: waterTile,
+	})
 
-			if height < waterLevel {
-				tiles[x][y] = GetTile(spritesheet, WaterTile)
-			} else if height < beachLevel {
-				tiles[x][y] = GetTile(spritesheet, DirtTile)
-			} else {
-				tiles[x][y] = GetTile(spritesheet, GrassTile)
-			}
-		}
-	}
-	batch := pixel.NewBatch(&pixel.TrianglesData{}, spritesheet.Picture())
-	tmap := tilemap.New(tiles, batch, tileSize)
-	tmap.Rebatch()
+	tmapRender.Batch(tmap)
 
 	// Create people
 	spawnPoint := pixel.V(
@@ -166,42 +139,13 @@ func runGame() {
 		camera.Update()
 
 		win.SetMatrix(camera.Mat())
-		tmap.Draw(win)
+		tmapRender.Draw(win)
 		for i := range people {
 			people[i].Draw(win)
 		}
 		win.SetMatrix(pixel.IM)
 
 		win.Update()
-	}
-}
-
-const (
-	GrassTile tilemap.TileType = iota
-	DirtTile
-	WaterTile
-)
-
-func GetTile(ss *asset.Spritesheet, t tilemap.TileType) tilemap.Tile {
-
-	spriteName := ""
-	switch t {
-	case GrassTile:
-		spriteName = "grass.png"
-	case DirtTile:
-		spriteName = "dirt.png"
-	case WaterTile:
-		spriteName = "water.png"
-	default:
-		panic("Unknow TileType!")
-	}
-
-	sprite, err := ss.Get(spriteName)
-	check(err)
-
-	return tilemap.Tile{
-		Type: t,
-		Sprite: sprite,
 	}
 }
 
