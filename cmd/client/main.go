@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 	"math"
+	"log"
+	"context"
 
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
@@ -14,6 +16,8 @@ import (
 	"github.com/jstewart7/mmo/engine/render"
 	"github.com/jstewart7/mmo/engine/tilemap"
 	"github.com/jstewart7/mmo/engine/pgen"
+
+	"nhooyr.io/websocket"
 )
 
 func check(err error) {
@@ -23,6 +27,33 @@ func check(err error) {
 }
 
 func main() {
+	// Setup Network
+	url := "ws://localhost:8000"
+
+	ctx := context.Background()
+	c, resp, err := websocket.Dial(ctx, url, nil)
+	check(err)
+
+	log.Println("Connection Response:", resp)
+
+	conn := websocket.NetConn(ctx, c, websocket.MessageBinary)
+
+	go func() {
+		counter := byte(0)
+		for {
+			time.Sleep(1 * time.Second)
+			n, err := conn.Write([]byte{counter})
+			if err != nil {
+				log.Println("Error Sending:", err)
+				return
+			}
+
+			log.Println("Sent n Bytes:", n)
+			counter++
+		}
+	}()
+
+	// Start Pixel
 	pixelgl.Run(runGame)
 }
 
