@@ -12,6 +12,7 @@ import (
 	"github.com/faiface/pixel/pixelgl"
 
 	"github.com/jstewart7/mmo"
+	"github.com/jstewart7/mmo/engine/ecs"
 	"github.com/jstewart7/mmo/engine/asset"
 	"github.com/jstewart7/mmo/engine/render"
 	"github.com/jstewart7/mmo/engine/tilemap"
@@ -69,6 +70,8 @@ func runGame() {
 
 	win.SetSmooth(false)
 
+	engine := ecs.NewEngine()
+
 	load := asset.NewLoad(os.DirFS("./"))
 
 	spritesheet, err := load.Spritesheet("packed.json")
@@ -96,9 +99,9 @@ func runGame() {
 	tmapRender.Batch(tmap)
 
 	// Create people
-	spawnPoint := pixel.V(
+	spawnPoint := Transform{
 		float64(tileSize*mapSize/2),
-		float64(tileSize*mapSize/2))
+		float64(tileSize*mapSize/2)}
 
 	manSprite, err := spritesheet.Get("man1.png")
 	check(err)
@@ -106,20 +109,26 @@ func runGame() {
 	hatManSprite, err := spritesheet.Get("man2.png")
 	check(err)
 
-	people := make([]Person, 0)
-	people = append(people, NewPerson(manSprite, spawnPoint, Keybinds{
+	manId := engine.NewId()
+	ecs.Write(engine, manId, Sprite{manSprite})
+	ecs.Write(engine, manId, spawnPoint)
+	ecs.Write(engine, manId, Keybinds{
 		Up: pixelgl.KeyUp,
 		Down: pixelgl.KeyDown,
 		Left: pixelgl.KeyLeft,
 		Right: pixelgl.KeyRight,
-	}))
+	})
 
-	people = append(people, NewPerson(hatManSprite, spawnPoint, Keybinds{
+	hatManId := engine.NewId()
+	ecs.Write(engine, hatManId, Sprite{hatManSprite})
+	ecs.Write(engine, hatManId, spawnPoint)
+	ecs.Write(engine, hatManId, Keybinds{
 		Up: pixelgl.KeyW,
 		Down: pixelgl.KeyS,
 		Left: pixelgl.KeyA,
 		Right: pixelgl.KeyD,
-	}))
+	})
+
 
 	camera := render.NewCamera(win, 0, 0)
 	zoomSpeed := 0.1
@@ -131,18 +140,20 @@ func runGame() {
 			camera.Zoom += zoomSpeed * scroll.Y
 		}
 
-		for i := range people {
-			people[i].HandleInput(win)
-		}
+		HandleInput(win, engine)
 
-		camera.Position = people[0].Position
+		transform := Transform{}
+		ok := ecs.Read(engine, manId, &transform)
+		if ok {
+			camera.Position = pixel.V(transform.X, transform.Y)
+		}
 		camera.Update()
 
 		win.SetMatrix(camera.Mat())
 		tmapRender.Draw(win)
-		for i := range people {
-			people[i].Draw(win)
-		}
+
+		DrawSprites(win, engine)
+
 		win.SetMatrix(pixel.IM)
 
 		win.Update()
@@ -152,36 +163,52 @@ func runGame() {
 type Keybinds struct {
 	Up, Down, Left, Right pixelgl.Button
 }
+func (t *Keybinds) ComponentSet(val interface{}) { *t = val.(Keybinds) }
 
-type Person struct {
-	Sprite *pixel.Sprite
-	Position pixel.Vec
-	Keybinds Keybinds
+type Sprite struct {
+	*pixel.Sprite
+}
+func (t *Sprite) ComponentSet(val interface{}) { *t = val.(Sprite) }
+
+type Transform struct {
+	X, Y float64
+}
+func (t *Transform) ComponentSet(val interface{}) { *t = val.(Transform) }
+
+func DrawSprites(win *pixelgl.Window, engine *ecs.Engine) {
+	ecs.Each(engine, Sprite{}, func(id ecs.Id, a interface{}) {
+		sprite := a.(Sprite)
+
+		transform := Transform{}
+		ok := ecs.Read(engine, id, &transform)
+		if !ok { return }
+
+		pos := pixel.V(transform.X, transform.Y)
+		sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 2.0).Moved(pos))
+	})
 }
 
-func NewPerson(sprite *pixel.Sprite, position pixel.Vec, keybinds Keybinds) Person {
-	return Person{
-		Sprite: sprite,
-		Position: position,
-		Keybinds: keybinds,
-	}
-}
+func HandleInput(win *pixelgl.Window, engine *ecs.Engine) {
+	ecs.Each(engine, Keybinds{}, func(id ecs.Id, a interface{}) {
+		keybinds := a.(Keybinds)
 
-func (p *Person) Draw(win *pixelgl.Window) {
-	p.Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 2.0).Moved(p.Position))
-}
+		transform := Transform{}
+		ok := ecs.Read(engine, id, &transform)
+		if !ok { return }
 
-func (p *Person) HandleInput(win *pixelgl.Window) {
-	if win.Pressed(p.Keybinds.Left) {
-		p.Position.X -= 2.0
-	}
-	if win.Pressed(p.Keybinds.Right) {
-		p.Position.X += 2.0
-	}
-	if win.Pressed(p.Keybinds.Up) {
-		p.Position.Y += 2.0
-	}
-	if win.Pressed(p.Keybinds.Down) {
-		p.Position.Y -= 2.0
-	}
+		if win.Pressed(keybinds.Left) {
+			transform.X -= 2.0
+		}
+		if win.Pressed(keybinds.Right) {
+			transform.X += 2.0
+		}
+		if win.Pressed(keybinds.Up) {
+			transform.Y += 2.0
+		}
+		if win.Pressed(keybinds.Down) {
+			transform.Y -= 2.0
+		}
+
+		ecs.Write(engine, id, transform)
+	})
 }
