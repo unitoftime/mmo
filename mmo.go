@@ -1,11 +1,36 @@
 package mmo
 
 import (
+	"time"
 	"math"
 
+	"github.com/jstewart7/mmo/engine/ecs"
 	"github.com/jstewart7/mmo/engine/tilemap"
+	"github.com/jstewart7/mmo/engine/physics"
 	"github.com/jstewart7/mmo/engine/pgen"
 )
+
+func LoadGame(engine *ecs.Engine) (*tilemap.Tilemap, ecs.Id, ecs.Id) {
+	// Create Tilemap
+	seed := int64(12345)
+	mapSize := 100
+	tileSize := 16
+	tmap := CreateTilemap(seed, mapSize, tileSize)
+
+	spawnPoint := physics.Transform{
+		float64(tileSize*mapSize/2),
+		float64(tileSize*mapSize/2)}
+
+	manId := engine.NewId()
+	ecs.Write(engine, manId, spawnPoint)
+	ecs.Write(engine, manId, physics.Input{})
+
+	hatManId := engine.NewId()
+	ecs.Write(engine, hatManId, spawnPoint)
+	ecs.Write(engine, hatManId, physics.Input{})
+
+	return tmap, manId, hatManId
+}
 
 const (
 	GrassTile tilemap.TileType = iota
@@ -56,4 +81,13 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tilemap.Tilemap {
 	tmap := tilemap.New(tiles, tileSize)
 
 	return tmap
+}
+
+func CreatePhysicsSystems(engine *ecs.Engine) []ecs.System {
+	physicsSystems := []ecs.System{
+		ecs.System{"HandleInput", func(dt time.Duration) {
+			physics.HandleInput(engine)
+		}},
+	}
+	return physicsSystems
 }
