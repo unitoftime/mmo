@@ -28,6 +28,10 @@ func check(err error) {
 }
 
 func main() {
+	pixelgl.Run(runGame)
+}
+
+func runGame() {
 	// Setup Network
 	url := "ws://localhost:8000"
 
@@ -39,26 +43,7 @@ func main() {
 
 	conn := websocket.NetConn(ctx, c, websocket.MessageBinary)
 
-	go func() {
-		counter := byte(0)
-		for {
-			time.Sleep(1 * time.Second)
-			n, err := conn.Write([]byte{counter})
-			if err != nil {
-				log.Println("Error Sending:", err)
-				return
-			}
-
-			log.Println("Sent n Bytes:", n)
-			counter++
-		}
-	}()
-
-	// Start Pixel
-	pixelgl.Run(runGame)
-}
-
-func runGame() {
+	// Setup Pixel
 	cfg := pixelgl.WindowConfig{
 		Title: "MMO",
 		Bounds: pixel.R(0, 0, 1024, 768),
@@ -75,7 +60,9 @@ func runGame() {
 	check(err)
 
 	engine := ecs.NewEngine()
-	tmap, manId, hatManId := mmo.LoadGame(engine)
+	go mmo.ClientReceive(engine, conn)
+
+	tmap := mmo.LoadGame(engine)
 
 	grassTile, err := spritesheet.Get("grass.png")
 	check(err)
@@ -97,34 +84,25 @@ func runGame() {
 	manSprite, err := spritesheet.Get("man1.png")
 	check(err)
 
-	hatManSprite, err := spritesheet.Get("man2.png")
-	check(err)
-
-	ecs.Write(engine, manId, render.Sprite{manSprite})
-	ecs.Write(engine, manId, render.Keybinds{
-		Up: pixelgl.KeyUp,
-		Down: pixelgl.KeyDown,
-		Left: pixelgl.KeyLeft,
-		Right: pixelgl.KeyRight,
-	})
-
-	ecs.Write(engine, hatManId, render.Sprite{hatManSprite})
-	ecs.Write(engine, hatManId, render.Keybinds{
-		Up: pixelgl.KeyW,
-		Down: pixelgl.KeyS,
-		Left: pixelgl.KeyA,
-		Right: pixelgl.KeyD,
-	})
-
 	camera := render.NewCamera(win, 0, 0)
 	zoomSpeed := 0.1
 	quit := ecs.Signal{}
 	quit.Set(false)
 
 	inputSystems := []ecs.System{
-		ecs.System{"Clear", func(dt time.Duration) {
-			win.Clear(pixel.RGB(0, 0, 0))
-
+		ecs.System{"BodyToSprite", func(dt time.Duration) {
+			ecs.Each(engine, mmo.Body{}, func(id ecs.Id, a interface{}) {
+				ecs.Write(engine, id, render.Sprite{manSprite})
+				ecs.Write(engine, id, physics.Input{})
+				ecs.Write(engine, id, render.Keybinds{
+					Up: pixelgl.KeyW,
+					Down: pixelgl.KeyS,
+					Left: pixelgl.KeyA,
+					Right: pixelgl.KeyD,
+				})
+			})
+		}},
+		ecs.System{"MouseInput", func(dt time.Duration) {
 			// TODO - move to other system
 			scroll := win.MouseScroll()
 			if scroll.Y != 0 {
@@ -140,18 +118,20 @@ func runGame() {
 		}},
 	}
 
-	physicsSystems := mmo.CreatePhysicsSystems(engine)
+	physicsSystems := mmo.CreateClientSystems(engine, conn)
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
-			transform := physics.Transform{}
-			ok := ecs.Read(engine, manId, &transform)
-			if ok {
-				camera.Position = pixel.V(transform.X, transform.Y)
-			}
-			camera.Update()
+			// transform := physics.Transform{}
+			// ok := ecs.Read(engine, manId, &transform)
+			// if ok {
+			// 	camera.Position = pixel.V(transform.X, transform.Y)
+			// }
+			// camera.Update()
 		}},
 		ecs.System{"Draw", func(dt time.Duration) {
+			win.Clear(pixel.RGB(0, 0, 0))
+
 			win.SetMatrix(camera.Mat())
 			tmapRender.Draw(win)
 

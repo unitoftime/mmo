@@ -3,6 +3,7 @@ package mmo
 import (
 	"time"
 	"math"
+	"net"
 
 	"github.com/jstewart7/mmo/engine/ecs"
 	"github.com/jstewart7/mmo/engine/tilemap"
@@ -10,27 +11,27 @@ import (
 	"github.com/jstewart7/mmo/engine/pgen"
 )
 
-func LoadGame(engine *ecs.Engine) (*tilemap.Tilemap, ecs.Id, ecs.Id) {
-	// Create Tilemap
-	seed := int64(12345)
-	mapSize := 100
-	tileSize := 16
-	tmap := CreateTilemap(seed, mapSize, tileSize)
+var seed int64 = 12345
+var mapSize int = 100
+var tileSize int = 16
 
+func SpawnPoint() physics.Transform {
 	spawnPoint := physics.Transform{
 		float64(tileSize*mapSize/2),
 		float64(tileSize*mapSize/2)}
-
-	manId := engine.NewId()
-	ecs.Write(engine, manId, spawnPoint)
-	ecs.Write(engine, manId, physics.Input{})
-
-	hatManId := engine.NewId()
-	ecs.Write(engine, hatManId, spawnPoint)
-	ecs.Write(engine, hatManId, physics.Input{})
-
-	return tmap, manId, hatManId
+	return spawnPoint
 }
+
+func LoadGame(engine *ecs.Engine) *tilemap.Tilemap {
+	// Create Tilemap
+	tmap := CreateTilemap(seed, mapSize, tileSize)
+
+	return tmap
+}
+
+type Body struct {
+}
+func (t *Body) ComponentSet(val interface{}) { *t = val.(Body) }
 
 const (
 	GrassTile tilemap.TileType = iota
@@ -89,5 +90,29 @@ func CreatePhysicsSystems(engine *ecs.Engine) []ecs.System {
 			physics.HandleInput(engine)
 		}},
 	}
+	return physicsSystems
+}
+
+func CreateClientSystems(engine *ecs.Engine, conn net.Conn) []ecs.System {
+	clientSystems := []ecs.System{
+		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
+			ClientSendUpdate(engine, conn)
+		}},
+	}
+
+	physicsSystems := CreatePhysicsSystems(engine)
+	clientSystems = append(clientSystems, physicsSystems...)
+	return clientSystems
+}
+
+func CreateServerSystems(engine *ecs.Engine) []ecs.System {
+	physicsSystems := CreatePhysicsSystems(engine)
+
+	physicsSystems = append(physicsSystems, []ecs.System{
+		ecs.System{"ServerSendUpdate", func(dt time.Duration) {
+			ServerSendUpdate(engine)
+		}},
+	}...)
+
 	return physicsSystems
 }

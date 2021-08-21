@@ -8,19 +8,21 @@ import (
 	"net"
 	"net/http"
 	"context"
+	"encoding/json"
 
 	"nhooyr.io/websocket"
 
 	"github.com/jstewart7/mmo"
 	"github.com/jstewart7/mmo/engine/ecs"
+	"github.com/jstewart7/mmo/engine/physics"
 )
 
 func main() {
 	// Load Game
 	engine := ecs.NewEngine()
-	_, _, _ = mmo.LoadGame(engine)
+	_ = mmo.LoadGame(engine)
 
-	physicsSystems := mmo.CreatePhysicsSystems(engine)
+	physicsSystems := mmo.CreateServerSystems(engine)
 
 	quit := ecs.Signal{}
 	quit.Set(false)
@@ -33,7 +35,9 @@ func main() {
 	}
 
 	s := &http.Server{
-		Handler: websocketServer{},
+		Handler: websocketServer{
+			engine: engine,
+		},
 		ReadTimeout: 10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
@@ -67,6 +71,7 @@ func main() {
 }
 
 type websocketServer struct {
+	engine *ecs.Engine
 }
 
 func (s websocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -78,10 +83,11 @@ func (s websocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx := context.Background()
 	conn := websocket.NetConn(ctx, c, websocket.MessageBinary)
-	go ServeNetConn(conn)
+
+	go ServeNetConn(s.engine, conn)
 }
 
-func ServeNetConn(conn net.Conn) {
+func ServeNetConn(engine *ecs.Engine, conn net.Conn) {
 	defer func() {
 		err := conn.Close()
 		if err != nil {
@@ -95,7 +101,15 @@ func ServeNetConn(conn net.Conn) {
 	const ContTimeout uint8 = 1
 	const MaxMsgSize int = 4 * 1024
 
+	// Login player
+	// TODO - put into a function
+	id := engine.NewId()
+	ecs.Write(engine, id, mmo.Websocket{conn})
+	ecs.Write(engine, id, mmo.SpawnPoint())
+
 	// Read data
+	// TODO - TCP doesn't provide framing, so message framing needs to be added
+	// TODO - TCP will send 0 byte messages to indicate closes, websockets sends them without closing
 	go func() {
 		msg := make([]byte, MaxMsgSize)
 		for {
@@ -105,12 +119,22 @@ func ServeNetConn(conn net.Conn) {
 				log.Println("Read Error:", err)
 				timeout <- StopTimeout // Stop timeout because of a read error
 				return
+			} else if n <= 0 {
+				continue
 			}
 
 			// Tick the timeout watcher so we don't timeout!
 			timeout <- ContTimeout
 
-			log.Println("Message:", msg[:n])
+			// TODO - handle multiple message types
+			input := physics.Input{}
+			err = json.Unmarshal(msg[:n], &input)
+			if err != nil {
+				log.Println("Message didn't match input:", msg[:n])
+				continue
+			}
+
+			ecs.Write(engine, id, input)
 		}
 	}()
 
