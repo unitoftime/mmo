@@ -22,12 +22,18 @@ func main() {
 	engine := ecs.NewEngine()
 	_ = mmo.LoadGame(engine)
 
+	// TODO - make configurable
+	networkChannel := make(chan mmo.ChannelUpdate, 1024)
 	physicsSystems := mmo.CreateServerSystems(engine)
 
 	quit := ecs.Signal{}
 	quit.Set(false)
 
-	go ecs.RunGame([]ecs.System{}, physicsSystems, []ecs.System{}, &quit)
+	inputSystems := []ecs.System{
+		mmo.CreatePollNetworkSystem(engine, networkChannel),
+	}
+
+	go ecs.RunGame(inputSystems, physicsSystems, []ecs.System{}, &quit)
 
 	listener, err := net.Listen("tcp", ":8000")
 	if err != nil {
@@ -37,6 +43,7 @@ func main() {
 	s := &http.Server{
 		Handler: websocketServer{
 			engine: engine,
+			networkChannel: networkChannel,
 		},
 		ReadTimeout: 10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -72,6 +79,7 @@ func main() {
 
 type websocketServer struct {
 	engine *ecs.Engine
+	networkChannel chan mmo.ChannelUpdate
 }
 
 func (s websocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -82,12 +90,13 @@ func (s websocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
+
 	conn := websocket.NetConn(ctx, c, websocket.MessageBinary)
 
-	go ServeNetConn(s.engine, conn)
+	go ServeNetConn(s.engine, conn, s.networkChannel)
 }
 
-func ServeNetConn(engine *ecs.Engine, conn net.Conn) {
+func ServeNetConn(engine *ecs.Engine, conn net.Conn, networkChannel chan mmo.ChannelUpdate) {
 	defer func() {
 		err := conn.Close()
 		if err != nil {
@@ -105,7 +114,9 @@ func ServeNetConn(engine *ecs.Engine, conn net.Conn) {
 	// TODO - put into a function
 	id := engine.NewId()
 	ecs.Write(engine, id, mmo.Websocket{conn})
+	ecs.Write(engine, id, physics.Input{})
 	ecs.Write(engine, id, mmo.SpawnPoint())
+	log.Println("Logging in player:", id)
 
 	// Read data
 	// TODO - TCP doesn't provide framing, so message framing needs to be added
@@ -134,7 +145,10 @@ func ServeNetConn(engine *ecs.Engine, conn net.Conn) {
 				continue
 			}
 
-			ecs.Write(engine, id, input)
+			networkChannel <- mmo.ChannelUpdate{
+				Id: id,
+				Component: input,
+			}
 		}
 	}()
 

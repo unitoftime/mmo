@@ -2,7 +2,6 @@ package ecs
 
 import (
 	"reflect"
-	"sync"
 )
 
 // Before mutex
@@ -26,7 +25,6 @@ type Component interface {
 }
 
 type BasicStorage struct {
-	mu sync.RWMutex
 	list map[Id]interface{}
 }
 
@@ -37,22 +35,16 @@ func NewBasicStorage() *BasicStorage {
 }
 
 func (s *BasicStorage) Read(id Id) (interface{}, bool) {
-	s.mu.RLock()
 	val, ok := s.list[id]
-	s.mu.RUnlock()
 	return val, ok
 }
 
 func (s *BasicStorage) Write(id Id, val interface{}) {
-	s.mu.Lock()
 	s.list[id] = val
-	s.mu.Unlock()
 }
 
 func (s *BasicStorage) Delete(id Id) {
-	s.mu.Lock()
 	delete(s.list, id)
-	s.mu.Unlock()
 }
 
 type Engine struct {
@@ -115,9 +107,7 @@ func Delete(engine *Engine, id Id) {
 
 func Each(engine *Engine, t interface{}, f func(id Id, a interface{})) {
 	storage := GetStorage(engine, t)
-	storage.mu.Lock()
 	for id, a := range storage.list {
 		f(id, a)
 	}
-	storage.mu.Unlock()
 }

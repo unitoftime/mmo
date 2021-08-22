@@ -59,8 +59,10 @@ func runGame() {
 	spritesheet, err := load.Spritesheet("packed.json")
 	check(err)
 
+	networkChannel := make(chan mmo.ChannelUpdate, 1024)
+
 	engine := ecs.NewEngine()
-	go mmo.ClientReceive(engine, conn)
+	go mmo.ClientReceive(engine, conn, networkChannel)
 
 	tmap := mmo.LoadGame(engine)
 
@@ -90,6 +92,7 @@ func runGame() {
 	quit.Set(false)
 
 	inputSystems := []ecs.System{
+		mmo.CreatePollNetworkSystem(engine, networkChannel),
 		ecs.System{"BodyToSprite", func(dt time.Duration) {
 			ecs.Each(engine, mmo.Body{}, func(id ecs.Id, a interface{}) {
 				ecs.Write(engine, id, render.Sprite{manSprite})
@@ -122,12 +125,15 @@ func runGame() {
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
-			// transform := physics.Transform{}
-			// ok := ecs.Read(engine, manId, &transform)
-			// if ok {
-			// 	camera.Position = pixel.V(transform.X, transform.Y)
-			// }
-			// camera.Update()
+			ecs.Each(engine, mmo.ClientOwned{}, func(id ecs.Id, a interface{}) {
+				transform := physics.Transform{}
+				ok := ecs.Read(engine, id, &transform)
+				if ok {
+					camera.Position = pixel.V(transform.X, transform.Y)
+				}
+			})
+
+			camera.Update()
 		}},
 		ecs.System{"Draw", func(dt time.Duration) {
 			win.Clear(pixel.RGB(0, 0, 0))

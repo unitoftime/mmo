@@ -33,6 +33,10 @@ type Body struct {
 }
 func (t *Body) ComponentSet(val interface{}) { *t = val.(Body) }
 
+type ClientOwned struct {
+}
+func (t *ClientOwned) ComponentSet(val interface{}) { *t = val.(ClientOwned) }
+
 const (
 	GrassTile tilemap.TileType = iota
 	DirtTile
@@ -87,7 +91,7 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tilemap.Tilemap {
 func CreatePhysicsSystems(engine *ecs.Engine) []ecs.System {
 	physicsSystems := []ecs.System{
 		ecs.System{"HandleInput", func(dt time.Duration) {
-			physics.HandleInput(engine)
+			physics.HandleInput(engine, dt)
 		}},
 	}
 	return physicsSystems
@@ -105,6 +109,11 @@ func CreateClientSystems(engine *ecs.Engine, conn net.Conn) []ecs.System {
 	return clientSystems
 }
 
+type ChannelUpdate struct {
+	Id ecs.Id
+	Component interface{}
+}
+
 func CreateServerSystems(engine *ecs.Engine) []ecs.System {
 	physicsSystems := CreatePhysicsSystems(engine)
 
@@ -115,4 +124,20 @@ func CreateServerSystems(engine *ecs.Engine) []ecs.System {
 	}...)
 
 	return physicsSystems
+}
+
+func CreatePollNetworkSystem(engine *ecs.Engine, networkChannel chan ChannelUpdate) ecs.System {
+	sys := ecs.System{"PollNetworkChannel", func(dt time.Duration) {
+
+	MainLoop:
+		for {
+			select {
+			case update := <-networkChannel:
+				ecs.Write(engine, update.Id, update.Component)
+			default:
+				break MainLoop
+			}
+		}
+	}}
+	return sys
 }
