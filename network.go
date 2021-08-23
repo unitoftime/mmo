@@ -5,6 +5,8 @@ import (
 	"net"
 	"encoding/json"
 
+	"go.nanomsg.org/mangos/v3"
+
 	"github.com/jstewart7/mmo/engine/ecs"
 	"github.com/jstewart7/mmo/engine/physics"
 )
@@ -18,8 +20,6 @@ func ClientSendUpdate(engine *ecs.Engine, conn net.Conn) {
 	ecs.Each(engine, physics.Input{}, func(id ecs.Id, a interface{}) {
 		input := a.(physics.Input)
 
-		// log.Println(input)
-		// Serialize
 		serializedInput, err := json.Marshal(input)
 		if err != nil {
 			log.Println("Failed to serialize", input)
@@ -79,17 +79,7 @@ func ClientReceive(engine *ecs.Engine, conn net.Conn, networkChannel chan Channe
 	}
 }
 
-type ServerUpdate struct {
-	PlayerId ecs.Id
-	Transforms []TransformUpdate
-}
-
-type TransformUpdate struct {
-	Id ecs.Id
-	Transform physics.Transform
-}
-
-func ServerSendUpdate(engine *ecs.Engine) {
+func ServerSendUpdate(engine *ecs.Engine, sock mangos.Socket) {
 	transformList := make([]TransformUpdate, 0)
 
 	ecs.Each(engine, physics.Transform{}, func(id ecs.Id, a interface{}) {
@@ -101,12 +91,17 @@ func ServerSendUpdate(engine *ecs.Engine) {
 		})
 	})
 
-	ecs.Each(engine, Websocket{}, func(id ecs.Id, a interface{}) {
-		websocket := a.(Websocket)
 
-		serverUpdate := ServerUpdate{
-			PlayerId: id,
-			Transforms: transformList,
+	ecs.Each(engine, User{}, func(id ecs.Id, a interface{}) {
+		user := a.(User)
+
+		serverUpdate := ServerToProxyMessage{
+			Type: "physics",
+			Username: user.Name,
+			Update: ServerUpdate{
+				PlayerId: id,
+				Transforms: transformList,
+			},
 		}
 
 		log.Println(serverUpdate)
@@ -119,13 +114,33 @@ func ServerSendUpdate(engine *ecs.Engine) {
 
 		log.Println(string(serializedUpdate))
 
-		n, err := websocket.Write(serializedUpdate)
+		err = sock.Send(serializedUpdate)
 		if err != nil {
 			log.Println("Error Sending:", err)
-			// TODO - we need to tag this entity with a logout message or something
-			ecs.Delete(engine, id)
 			return
 		}
-		log.Println("Sent n Bytes:", n)
 	})
+}
+
+// TODO - find a better place for this
+type ProxyToServerMessage struct {
+	Type string
+	Username string
+	Input physics.Input
+}
+
+type ServerToProxyMessage struct {
+	Type string
+	Username string
+	Update ServerUpdate
+}
+
+type ServerUpdate struct {
+	PlayerId ecs.Id
+	Transforms []TransformUpdate
+}
+
+type TransformUpdate struct {
+	Id ecs.Id
+	Transform physics.Transform
 }

@@ -5,6 +5,8 @@ import (
 	"math"
 	"net"
 
+	"go.nanomsg.org/mangos/v3"
+
 	"github.com/jstewart7/mmo/engine/ecs"
 	"github.com/jstewart7/mmo/engine/tilemap"
 	"github.com/jstewart7/mmo/engine/physics"
@@ -28,6 +30,11 @@ func LoadGame(engine *ecs.Engine) *tilemap.Tilemap {
 
 	return tmap
 }
+
+type User struct {
+	Name string
+}
+func (t *User) ComponentSet(val interface{}) { *t = val.(User) }
 
 type Body struct {
 }
@@ -114,12 +121,12 @@ type ChannelUpdate struct {
 	Component interface{}
 }
 
-func CreateServerSystems(engine *ecs.Engine) []ecs.System {
+func CreateServerSystems(engine *ecs.Engine, sock mangos.Socket) []ecs.System {
 	physicsSystems := CreatePhysicsSystems(engine)
 
 	physicsSystems = append(physicsSystems, []ecs.System{
 		ecs.System{"ServerSendUpdate", func(dt time.Duration) {
-			ServerSendUpdate(engine)
+			ServerSendUpdate(engine, sock)
 		}},
 	}...)
 
@@ -141,3 +148,4 @@ func CreatePollNetworkSystem(engine *ecs.Engine, networkChannel chan ChannelUpda
 	}}
 	return sys
 }
+

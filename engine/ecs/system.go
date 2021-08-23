@@ -35,7 +35,7 @@ func (s *Signal) Get() bool {
 // Note: Would be nice to sleep or something to prevent spinning while we wait for work to do
 // Could also separate the render loop from the physics loop (requires some thread safety in ECS)
 func RunGame(inputSystems, physicsSystems, renderSystems []System, quit *Signal) {
-	const fixedTimeStep = 16 * time.Millisecond
+	const fixedTimeStep = 33 * time.Millisecond
 
 	frameStart := time.Now()
 	dt := fixedTimeStep
