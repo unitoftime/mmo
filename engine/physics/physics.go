@@ -19,7 +19,8 @@ func HandleInput(engine *ecs.Engine, dt time.Duration) {
 	ecs.Each(engine, Input{}, func(id ecs.Id, a interface{}) {
 		input := a.(Input)
 
-		speed := 100.0
+		// Note: 100 good starting point, 200 seemed like a good max
+		speed := 125.0
 
 		transform := Transform{}
 		ok := ecs.Read(engine, id, &transform)

@@ -1,8 +1,6 @@
 package render
 
 import (
-	"math"
-
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
 )
@@ -26,10 +24,7 @@ func NewCamera(win *pixelgl.Window, x, y float64) *Camera {
 func (c *Camera) Update() {
 	screenCenter := c.win.Bounds().Center()
 
-	movePos := pixel.V(
-		math.Floor(-c.Position.X),
-		math.Floor(-c.Position.Y)).Add(screenCenter)
-
+	movePos := pixel.V(-c.Position.X, -c.Position.Y).Add(screenCenter)
 	c.mat = pixel.IM.Moved(movePos).Scaled(screenCenter, c.Zoom)
 }
 

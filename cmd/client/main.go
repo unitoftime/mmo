@@ -93,16 +93,30 @@ func runGame() {
 
 	inputSystems := []ecs.System{
 		mmo.CreatePollNetworkSystem(engine, networkChannel),
+		ecs.System{"InterpolateSpritePositions", func(dt time.Duration) {
+			render.InterpolateSpritePositions(engine, dt)
+		}},
 		ecs.System{"BodyToSprite", func(dt time.Duration) {
 			ecs.Each(engine, mmo.Body{}, func(id ecs.Id, a interface{}) {
-				ecs.Write(engine, id, render.Sprite{manSprite})
-				ecs.Write(engine, id, physics.Input{})
-				ecs.Write(engine, id, render.Keybinds{
-					Up: pixelgl.KeyW,
-					Down: pixelgl.KeyS,
-					Left: pixelgl.KeyA,
-					Right: pixelgl.KeyD,
-				})
+
+				// TODO - We should really have a login-response-handling function
+				sprite := render.Sprite{}
+				ok := ecs.Read(engine, id, &sprite)
+				if !ok {
+					ecs.Write(engine, id, render.Sprite{
+						Position: pixel.ZV, // TODO - just read this from transform
+						Sprite: manSprite,
+					})
+
+					// TODO - put into a login message
+					ecs.Write(engine, id, physics.Input{})
+					ecs.Write(engine, id, render.Keybinds{
+						Up: pixelgl.KeyW,
+						Down: pixelgl.KeyS,
+						Left: pixelgl.KeyA,
+						Right: pixelgl.KeyD,
+					})
+				}
 			})
 		}},
 		ecs.System{"MouseInput", func(dt time.Duration) {
@@ -126,10 +140,10 @@ func runGame() {
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
 			ecs.Each(engine, mmo.ClientOwned{}, func(id ecs.Id, a interface{}) {
-				transform := physics.Transform{}
-				ok := ecs.Read(engine, id, &transform)
+				sprite := render.Sprite{}
+				ok := ecs.Read(engine, id, &sprite)
 				if ok {
-					camera.Position = pixel.V(transform.X, transform.Y)
+					camera.Position = sprite.Position
 				}
 			})
 

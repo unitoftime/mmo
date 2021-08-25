@@ -1,6 +1,7 @@
 package ecs
 
 import (
+	"fmt"
 	"reflect"
 )
 
@@ -84,6 +85,12 @@ func GetStorage(e *Engine, t interface{}) *BasicStorage {
 	}
 	return storage
 }
+
+func Print(e *Engine, id Id, val interface{}) {
+	storage := GetStorage(e, val)
+	fmt.Println(storage)
+}
+
 
 func Read(e *Engine, id Id, val Component) bool {
 	storage := GetStorage(e, val)

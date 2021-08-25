@@ -36,16 +36,12 @@ func main() {
 
 	// TODO - make configurable
 	networkChannel := make(chan mmo.ChannelUpdate, 1024)
-	physicsSystems := mmo.CreateServerSystems(engine, sock)
+	serverSystems := mmo.CreateServerSystems(engine, sock, networkChannel)
 
 	quit := ecs.Signal{}
 	quit.Set(false)
 
-	inputSystems := []ecs.System{
-		mmo.CreatePollNetworkSystem(engine, networkChannel),
-	}
-
-	go ecs.RunGame(inputSystems, physicsSystems, []ecs.System{}, &quit)
+	go ecs.RunGameFixed(serverSystems, &quit)
 
 	go ServeProxyConnection(sock, engine, networkChannel)
 

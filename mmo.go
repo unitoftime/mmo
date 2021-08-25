@@ -121,16 +121,21 @@ type ChannelUpdate struct {
 	Component interface{}
 }
 
-func CreateServerSystems(engine *ecs.Engine, sock mangos.Socket) []ecs.System {
-	physicsSystems := CreatePhysicsSystems(engine)
+func CreateServerSystems(engine *ecs.Engine, sock mangos.Socket, networkChannel chan ChannelUpdate) []ecs.System {
+	serverSystems := []ecs.System{
+		CreatePollNetworkSystem(engine, networkChannel),
+	}
 
-	physicsSystems = append(physicsSystems, []ecs.System{
+	serverSystems = append(serverSystems,
+		CreatePhysicsSystems(engine)...)
+
+	serverSystems = append(serverSystems, []ecs.System{
 		ecs.System{"ServerSendUpdate", func(dt time.Duration) {
 			ServerSendUpdate(engine, sock)
 		}},
 	}...)
 
-	return physicsSystems
+	return serverSystems
 }
 
 func CreatePollNetworkSystem(engine *ecs.Engine, networkChannel chan ChannelUpdate) ecs.System {
@@ -146,6 +151,7 @@ func CreatePollNetworkSystem(engine *ecs.Engine, networkChannel chan ChannelUpda
 			}
 		}
 	}}
+
 	return sys
 }
 

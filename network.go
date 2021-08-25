@@ -1,9 +1,12 @@
 package mmo
 
 import (
+	"fmt"
 	"log"
 	"net"
+	"bytes"
 	"encoding/json"
+	"encoding/binary"
 
 	"go.nanomsg.org/mangos/v3"
 
@@ -63,7 +66,12 @@ func ClientReceive(engine *ecs.Engine, conn net.Conn, networkChannel chan Channe
 
 		for i := range serverUpdate.Transforms {
 			id := serverUpdate.Transforms[i].Id
-			transform := serverUpdate.Transforms[i].Transform
+			transform, err := serverUpdate.Transforms[i].GetTransform()
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
 			networkChannel <- ChannelUpdate{
 				Id: id,
 				Component: transform,
@@ -85,10 +93,13 @@ func ServerSendUpdate(engine *ecs.Engine, sock mangos.Socket) {
 	ecs.Each(engine, physics.Transform{}, func(id ecs.Id, a interface{}) {
 		transform := a.(physics.Transform)
 
-		transformList = append(transformList, TransformUpdate{
-			Id: id,
-			Transform: transform,
-		})
+		transformUpdate, err := NewTransformUpdate(id, transform)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		
+		transformList = append(transformList, transformUpdate)
 	})
 
 
@@ -104,15 +115,11 @@ func ServerSendUpdate(engine *ecs.Engine, sock mangos.Socket) {
 			},
 		}
 
-		log.Println(serverUpdate)
-
 		serializedUpdate, err := json.Marshal(serverUpdate)
 		if err != nil {
 			log.Println("Failed to serialize", serializedUpdate)
 			return
 		}
-
-		log.Println(string(serializedUpdate))
 
 		err = sock.Send(serializedUpdate)
 		if err != nil {
@@ -142,5 +149,31 @@ type ServerUpdate struct {
 
 type TransformUpdate struct {
 	Id ecs.Id
-	Transform physics.Transform
+	// Transform physics.Transform
+	TransformBytes []byte
+}
+
+func NewTransformUpdate(id ecs.Id, transform physics.Transform) (TransformUpdate, error) {
+	buf := new(bytes.Buffer)
+
+	err := binary.Write(buf, binary.LittleEndian, transform)
+	if err != nil {
+		return TransformUpdate{}, fmt.Errorf("Failed to serialize transform: %s", err)
+	}
+
+	update := TransformUpdate{
+		Id: id,
+		TransformBytes: buf.Bytes(),
+	}
+	return update, nil
+}
+
+func (t *TransformUpdate) GetTransform() (physics.Transform, error) {
+	buf := bytes.NewReader(t.TransformBytes)
+	transform := physics.Transform{}
+	err := binary.Read(buf, binary.LittleEndian, &transform)
+	if err != nil {
+		return physics.Transform{}, fmt.Errorf("Failed to deserialize transform: %s", err)
+	}
+	return transform, nil
 }
