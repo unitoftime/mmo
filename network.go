@@ -1,17 +1,14 @@
 package mmo
 
 import (
-	"fmt"
 	"log"
 	"net"
-	"bytes"
-	"encoding/json"
-	"encoding/binary"
 
 	"go.nanomsg.org/mangos/v3"
 
 	"github.com/jstewart7/mmo/engine/ecs"
 	"github.com/jstewart7/mmo/engine/physics"
+	"github.com/jstewart7/mmo/serdes"
 )
 
 type Websocket struct {
@@ -20,13 +17,23 @@ type Websocket struct {
 func (t *Websocket) ComponentSet(val interface{}) { *t = val.(Websocket) }
 
 func ClientSendUpdate(engine *ecs.Engine, conn net.Conn) {
-	ecs.Each(engine, physics.Input{}, func(id ecs.Id, a interface{}) {
-		input := a.(physics.Input)
-
-		serializedInput, err := json.Marshal(input)
-		if err != nil {
-			log.Println("Failed to serialize", input)
+	ecs.Each(engine, ClientOwned{}, func(id ecs.Id, a interface{}) {
+		input := physics.Input{}
+		ok := ecs.Read(engine, id, &input)
+		if !ok {
+			log.Println("ERROR: Client Owned Entity should always have an input!")
 			return
+		}
+
+		update := serdes.WorldUpdate{
+			WorldData: map[ecs.Id][]interface{}{
+				id: []interface{}{input},
+			},
+		}
+		log.Println("ClientSendUpdate:", update)
+		serializedInput, err := serdes.MarshalWorldUpdateMessage(update)
+		if err != nil {
+			log.Println("Flatbuffers, Failed to serialize", err)
 		}
 
 		_, err = conn.Write(serializedInput)
@@ -37,7 +44,7 @@ func ClientSendUpdate(engine *ecs.Engine, conn net.Conn) {
 	})
 }
 
-func ClientReceive(engine *ecs.Engine, conn net.Conn, networkChannel chan ChannelUpdate) {
+func ClientReceive(engine *ecs.Engine, conn net.Conn, networkChannel chan serdes.WorldUpdate) {
 	const MaxMsgSize int = 4 * 1024
 
 	msg := make([]byte, MaxMsgSize)
@@ -50,74 +57,64 @@ func ClientReceive(engine *ecs.Engine, conn net.Conn, networkChannel chan Channe
 		}
 		if n <= 0 { continue }
 
-		serverUpdate := ServerUpdate{}
-		err = json.Unmarshal(msg[:n], &serverUpdate)
+		fbMessage, err := serdes.UnmarshalMessage(msg)
 		if err != nil {
-			log.Println("Message didn't match ServerUpdate struct:", msg[:n])
+			log.Println("Failed to unmarshal:", err)
 			continue
 		}
 
-		// Let the player know that they own this entity
-		// TODO - should this go into some other state? ie not a tag
-		networkChannel <- ChannelUpdate{
-			Id: serverUpdate.PlayerId,
-			Component: ClientOwned{},
-		}
-
-		for i := range serverUpdate.Transforms {
-			id := serverUpdate.Transforms[i].Id
-			transform, err := serverUpdate.Transforms[i].GetTransform()
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-
-			networkChannel <- ChannelUpdate{
-				Id: id,
-				Component: transform,
-			}
-
-			// TODO - eventually server will have authority on this
-			body := Body{}
-			networkChannel <- ChannelUpdate{
-				Id: id,
-				Component: body,
-			}
+		switch t := fbMessage.(type) {
+		case serdes.WorldUpdate:
+			log.Println(t)
+			networkChannel <- t
+		case serdes.ClientLoginResp:
+			log.Println("serdes.ClientLoginResp", t)
+			ecs.Write(engine, ecs.Id(t.Id), ClientOwned{})
+			ecs.Write(engine, ecs.Id(t.Id), Body{})
+		default:
+			panic("Unknown message type")
 		}
 	}
 }
 
 func ServerSendUpdate(engine *ecs.Engine, sock mangos.Socket) {
-	transformList := make([]TransformUpdate, 0)
+	// transformList := make([]TransformUpdate, 0)
+
+	update := serdes.WorldUpdate{
+		UserId: 0,
+		WorldData: make(map[ecs.Id][]interface{}),
+	}
 
 	ecs.Each(engine, physics.Transform{}, func(id ecs.Id, a interface{}) {
 		transform := a.(physics.Transform)
+		body := Body{}
+		ok := ecs.Read(engine, id, &body)
+		if !ok { return }
 
-		transformUpdate, err := NewTransformUpdate(id, transform)
-		if err != nil {
-			log.Println(err)
-			return
+		// transformUpdate, err := NewTransformUpdate(id, transform)
+		// if err != nil {
+		// 	log.Println(err)
+		// 	return
+		// }
+
+		// transformList = append(transformList, transformUpdate)
+
+		compList := []interface{}{
+			transform,
+			body,
 		}
-		
-		transformList = append(transformList, transformUpdate)
+		update.WorldData[id] = compList
 	})
-
 
 	ecs.Each(engine, User{}, func(id ecs.Id, a interface{}) {
 		user := a.(User)
 
-		serverUpdate := ServerToProxyMessage{
-			Type: "physics",
-			Username: user.Name,
-			Update: ServerUpdate{
-				PlayerId: id,
-				Transforms: transformList,
-			},
-		}
+		log.Println("ServerSendUpdate WorldUpdate:", update)
 
-		serializedUpdate, err := json.Marshal(serverUpdate)
+		update.UserId = user.Id
+		serializedUpdate, err := serdes.MarshalWorldUpdateMessage(update)
 		if err != nil {
-			log.Println("Failed to serialize", serializedUpdate)
+			log.Println("Error Marshalling", err)
 			return
 		}
 
@@ -129,51 +126,63 @@ func ServerSendUpdate(engine *ecs.Engine, sock mangos.Socket) {
 	})
 }
 
-// TODO - find a better place for this
-type ProxyToServerMessage struct {
-	Type string
-	Username string
-	Input physics.Input
-}
+func ServeProxyConnection(sock mangos.Socket, engine *ecs.Engine, networkChannel chan serdes.WorldUpdate) {
+	log.Println("Server: ServeProxyConnection")
+	loginMap := make(map[uint64]ecs.Id)
 
-type ServerToProxyMessage struct {
-	Type string
-	Username string
-	Update ServerUpdate
-}
+	// Read data
+	for {
+		msg, err := sock.Recv()
+		if err != nil {
+			log.Println("Read Error:", err)
+		}
 
-type ServerUpdate struct {
-	PlayerId ecs.Id
-	Transforms []TransformUpdate
-}
+		fbMessage, err := serdes.UnmarshalMessage(msg)
+		if err != nil {
+			log.Println("Failed to unmarshal:", err)
+			continue
+		}
 
-type TransformUpdate struct {
-	Id ecs.Id
-	// Transform physics.Transform
-	TransformBytes []byte
-}
+		// Interpret different messages
+		switch t := fbMessage.(type) {
+		case serdes.WorldUpdate:
+			id := loginMap[t.UserId]
+			// TODO - requires client to put their input on spot 0
+			componentList := t.WorldData[id]
+			input, ok := componentList[id].(physics.Input)
+			if !ok { continue }
 
-func NewTransformUpdate(id ecs.Id, transform physics.Transform) (TransformUpdate, error) {
-	buf := new(bytes.Buffer)
+			trustedUpdate := serdes.WorldUpdate{
+				WorldData: map[ecs.Id][]interface{}{
+					id: []interface{}{input},
+				},
+			}
+			log.Println("TrustedUpdate:", trustedUpdate)
 
-	err := binary.Write(buf, binary.LittleEndian, transform)
-	if err != nil {
-		return TransformUpdate{}, fmt.Errorf("Failed to serialize transform: %s", err)
+			networkChannel <- trustedUpdate
+		case serdes.ClientLogin:
+			log.Println("Server: serdes.ClientLogin")
+			// Login player
+			// TODO - put into a function
+			// TODO - not thread safe! Concurrent map access
+			// TODO - Refactor networking layer to have an RPC functionality
+			id := engine.NewId()
+			ecs.Write(engine, id, User{
+				Id: t.UserId,
+			})
+			ecs.Write(engine, id, physics.Input{})
+			ecs.Write(engine, id, Body{})
+			ecs.Write(engine, id, SpawnPoint())
+			log.Println("Logging in player:", id)
+
+			loginMap[t.UserId] = id
+			loginResp := serdes.MarshalClientLoginRespMessage(t.UserId, id)
+			err := sock.Send(loginResp)
+			if err != nil {
+				log.Println("Failed to send login response")
+			}
+		default:
+			panic("Unknown message type")
+		}
 	}
-
-	update := TransformUpdate{
-		Id: id,
-		TransformBytes: buf.Bytes(),
-	}
-	return update, nil
-}
-
-func (t *TransformUpdate) GetTransform() (physics.Transform, error) {
-	buf := bytes.NewReader(t.TransformBytes)
-	transform := physics.Transform{}
-	err := binary.Read(buf, binary.LittleEndian, &transform)
-	if err != nil {
-		return physics.Transform{}, fmt.Errorf("Failed to deserialize transform: %s", err)
-	}
-	return transform, nil
 }

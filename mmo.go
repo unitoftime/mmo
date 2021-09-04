@@ -11,6 +11,7 @@ import (
 	"github.com/jstewart7/mmo/engine/tilemap"
 	"github.com/jstewart7/mmo/engine/physics"
 	"github.com/jstewart7/mmo/engine/pgen"
+	"github.com/jstewart7/mmo/serdes"
 )
 
 var seed int64 = 12345
@@ -31,8 +32,10 @@ func LoadGame(engine *ecs.Engine) *tilemap.Tilemap {
 	return tmap
 }
 
+// Represents a logged in user on the server
 type User struct {
-	Name string
+	Name string // TODO - remove and put into a component called "DisplayName"
+	Id uint64
 }
 func (t *User) ComponentSet(val interface{}) { *t = val.(User) }
 
@@ -116,12 +119,7 @@ func CreateClientSystems(engine *ecs.Engine, conn net.Conn) []ecs.System {
 	return clientSystems
 }
 
-type ChannelUpdate struct {
-	Id ecs.Id
-	Component interface{}
-}
-
-func CreateServerSystems(engine *ecs.Engine, sock mangos.Socket, networkChannel chan ChannelUpdate) []ecs.System {
+func CreateServerSystems(engine *ecs.Engine, sock mangos.Socket, networkChannel chan serdes.WorldUpdate) []ecs.System {
 	serverSystems := []ecs.System{
 		CreatePollNetworkSystem(engine, networkChannel),
 	}
@@ -138,14 +136,22 @@ func CreateServerSystems(engine *ecs.Engine, sock mangos.Socket, networkChannel 
 	return serverSystems
 }
 
-func CreatePollNetworkSystem(engine *ecs.Engine, networkChannel chan ChannelUpdate) ecs.System {
+func CreatePollNetworkSystem(engine *ecs.Engine, networkChannel chan serdes.WorldUpdate) ecs.System {
 	sys := ecs.System{"PollNetworkChannel", func(dt time.Duration) {
 
 	MainLoop:
 		for {
 			select {
 			case update := <-networkChannel:
-				ecs.Write(engine, update.Id, update.Component)
+				// log.Println(update)
+				// ecs.Write(engine, update.Id, update.Component)
+				for id, compList := range update.WorldData {
+					for i := range compList {
+						// fmt.Printf("HERE %T", compList[i])
+						// log.Println(compList[i])
+						ecs.Write(engine, id, compList[i])
+					}
+				}
 			default:
 				break MainLoop
 			}
@@ -154,4 +160,3 @@ func CreatePollNetworkSystem(engine *ecs.Engine, networkChannel chan ChannelUpda
 
 	return sys
 }
-

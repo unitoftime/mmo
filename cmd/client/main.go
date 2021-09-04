@@ -11,14 +11,15 @@ import (
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
 
+	"nhooyr.io/websocket"
+
 	"github.com/jstewart7/mmo"
+	"github.com/jstewart7/mmo/serdes"
 	"github.com/jstewart7/mmo/engine/ecs"
 	"github.com/jstewart7/mmo/engine/asset"
 	"github.com/jstewart7/mmo/engine/render"
 	"github.com/jstewart7/mmo/engine/physics"
 	"github.com/jstewart7/mmo/engine/tilemap"
-
-	"nhooyr.io/websocket"
 )
 
 func check(err error) {
@@ -59,7 +60,7 @@ func runGame() {
 	spritesheet, err := load.Spritesheet("packed.json")
 	check(err)
 
-	networkChannel := make(chan mmo.ChannelUpdate, 1024)
+	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
 	engine := ecs.NewEngine()
 	go mmo.ClientReceive(engine, conn, networkChannel)

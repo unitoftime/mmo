@@ -53,15 +53,23 @@ type Engine struct {
 	idCounter Id
 }
 
+const (
+	InvalidEntity Id = 0
+	UniqueEntity Id = 1
+)
+
 func NewEngine() *Engine {
 	return &Engine{
 		reg: make(map[string]*BasicStorage),
-		idCounter: 0,
+		idCounter: UniqueEntity + 1,
 	}
 }
 
 // TODO - make thread safe!
 func (e *Engine) NewId() Id {
+	if e.idCounter <= UniqueEntity {
+		e.idCounter = UniqueEntity + 1
+	}
 	id := e.idCounter
 	e.idCounter++
 	return id

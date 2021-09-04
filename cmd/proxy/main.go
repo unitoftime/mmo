@@ -9,7 +9,6 @@ import (
 	"net"
 	"time"
 	"context"
-	"encoding/json"
 
 	"nhooyr.io/websocket"
 
@@ -17,8 +16,8 @@ import (
 	"go.nanomsg.org/mangos/v3/protocol/pair"
 	_ "go.nanomsg.org/mangos/v3/transport/tcp"
 
-	"github.com/jstewart7/mmo"
-	"github.com/jstewart7/mmo/engine/physics"
+	"github.com/jstewart7/mmo/serdes"
+	"github.com/jstewart7/mmo/engine/ecs"
 )
 
 func main() {
@@ -113,33 +112,26 @@ func ServeNetConn(conn net.Conn, serverSocket mangos.Socket, room *Room) {
 
 	// Login player
 	// TODO - put into a function
-	username := "username"
+	userId := uint64(1111)
 	room.mu.Lock()
-	_, ok := room.Map[username]
+	_, ok := room.Map[userId]
 	if ok {
 		log.Println("Duplicate Login Detected! Exiting.")
 		room.mu.Unlock()
 		return
 	}
-	room.Map[username] = conn
+	room.Map[userId] = conn
 	room.mu.Unlock()
 	defer func() {
 		room.mu.Lock()
-		delete(room.Map, username)
+		delete(room.Map, userId)
 		room.mu.Unlock()
 	}()
 
-	loginMessage := mmo.ProxyToServerMessage{
-		Type: "login",
-		Username: username,
-	}
-	serLogin, err := json.Marshal(loginMessage)
-	if err != nil {
-		log.Println("Failed to serialize", loginMessage)
-		return
-	}
+	log.Println("Sending Login Message for", userId)
+	serLogin := serdes.MarshalClientLoginMessage(userId)
 
-	err = serverSocket.Send(serLogin)
+	err := serverSocket.Send(serLogin)
 	if err != nil {
 		log.Println("Failed to send login message")
 		return
@@ -164,30 +156,31 @@ func ServeNetConn(conn net.Conn, serverSocket mangos.Socket, room *Room) {
 			// Tick the timeout watcher so we don't timeout!
 			timeout <- ContTimeout
 
-			// TODO - handle multiple message types
-			input := physics.Input{}
-			err = json.Unmarshal(msg[:n], &input)
+			log.Println("Unmarshalling")
+			// TODO - replace with mutateInPlace code?
+			fbMessage, err := serdes.UnmarshalMessage(msg)
 			if err != nil {
-				log.Println("Message didn't match input:", msg[:n])
-				continue
+				log.Println("Failed to unmarshal:", err)
 			}
+			log.Println("ServeNetConn:", fbMessage)
 
-			inputMessage := mmo.ProxyToServerMessage{
-				Type: "input",
-				Username: username,
-				Input: input,
-			}
+			switch t := fbMessage.(type) {
+			case serdes.WorldUpdate:
+				log.Println("Client->Proxy: World Update received")
+				// TODO - replace with mutateInPlace code?
+				t.UserId = userId
+				serializedUpdate, err := serdes.MarshalWorldUpdateMessage(t)
+				if err != nil {
+					log.Println("Error Marshalling", err)
+					continue
+				}
 
-			serInput, err := json.Marshal(inputMessage)
-			if err != nil {
-				log.Println("Failed to serialize", inputMessage)
-				return
-			}
-
-			err = serverSocket.Send(serInput)
-			if err != nil {
-				log.Println("Failed to send input message")
-				return
+				err = serverSocket.Send(serializedUpdate)
+				if err != nil {
+					log.Println("Error Sending:", err)
+				}
+			default:
+				panic("Unknown message type")
 			}
 		}
 	}()
@@ -211,12 +204,12 @@ ExitTimeout:
 // TODO - rename
 type Room struct {
 	mu sync.RWMutex
-	Map map[string]net.Conn
+	Map map[uint64]net.Conn
 }
 
 func NewRoom() *Room {
 	return &Room{
-		Map: make(map[string]net.Conn),
+		Map: make(map[uint64]net.Conn),
 	}
 }
 
@@ -228,27 +221,26 @@ func (r *Room) HandleGameUpdates(sock mangos.Socket) {
 			log.Println("Read Error:", err)
 		}
 
-		proxyMsg := mmo.ServerToProxyMessage{}
-		err = json.Unmarshal(msg, &proxyMsg)
+		fbMessage, err := serdes.UnmarshalMessage(msg)
 		if err != nil {
-			log.Println("Message didn't match input:", msg)
-			continue
+			log.Println("Failed to unmarshal:", err)
 		}
+		log.Println("HandleGameUpdate:", fbMessage)
 
-		username := proxyMsg.Username
-		updateMsg := proxyMsg.Update
-
-		switch proxyMsg.Type {
-		case "physics":
+		switch t := fbMessage.(type) {
+		case serdes.WorldUpdate:
 			r.mu.RLock()
-			conn, ok := r.Map[username]
+			conn, ok := r.Map[t.UserId]
 			r.mu.RUnlock()
 			if ok {
-				serializedUpdate, err := json.Marshal(updateMsg)
+				// TODO - replace with mutateInPlace code?
+				t.UserId = 0
+				serializedUpdate, err := serdes.MarshalWorldUpdateMessage(t)
 				if err != nil {
-					log.Println("Failed to serialize", updateMsg)
+					log.Println("Error Marshalling", err)
 					continue
 				}
+				log.Println("Proxy WorldUpdate:", t)
 
 				_, err = conn.Write(serializedUpdate)
 				if err != nil {
@@ -256,8 +248,33 @@ func (r *Room) HandleGameUpdates(sock mangos.Socket) {
 					// TODO - User disconnected? Remove from map?
 				}
 			} else {
-				log.Println("User Disconnected", username)
+				log.Println("User Disconnected", t.UserId)
 			}
+		case serdes.ClientLoginResp:
+			log.Println("serdes.ClientLoginResp")
+			r.mu.RLock()
+			conn, ok := r.Map[t.UserId]
+			r.mu.RUnlock()
+			if ok {
+				// TODO - replace with mutateInPlace code?
+				t.UserId = 0
+				serializedMsg := serdes.MarshalClientLoginRespMessage(t.UserId, ecs.Id(t.Id))
+				if err != nil {
+					log.Println("Error Marshalling", err)
+					continue
+				}
+				log.Println("Proxy LoginResp:", t)
+
+				_, err = conn.Write(serializedMsg)
+				if err != nil {
+					log.Println("Error Sending:", err)
+					// TODO - User disconnected? Remove from map?
+				}
+			} else {
+				log.Println("User Disconnected", t.UserId)
+			}
+		default:
+			panic("Unknown message type")
 		}
 	}
 }
