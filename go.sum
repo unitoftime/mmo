@@ -45,6 +45,8 @@ github.com/gorilla/websocket v1.4.1 h1:q7AeDBpnBk8AogcD4DSag/Ukw/KV+YhzLj2bP5HvK
 github.com/gorilla/websocket v1.4.1/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/json-iterator/go v1.1.9 h1:9yzud/Ht36ygwatGx56VwCZtlI/2AD15T1X2sjSuGns=
 github.com/json-iterator/go v1.1.9/go.mod h1:KdQUCv79m/52Kvf8AW2vK1V8akMuk1QjK/uOdHXbAo4=
+github.com/jstewart7/ecs v0.0.0-20210924162709-a9652ee38159 h1:vMLihxR6FyFjV4HIaODM4iFXsy4Fvz5+IgruVj2aAm4=
+github.com/jstewart7/ecs v0.0.0-20210924162709-a9652ee38159/go.mod h1:zr3pJ5gvMsj100SkUYay23FBKGjEaM65yS7qFKhRDpM=
 github.com/jstewart7/packer v0.0.0-20210724114720-f05682cc3956 h1:wFHYLzevbk3UDhh1ZrHYqGxyoaUO3e82IczdmUPkrD8=
 github.com/jstewart7/packer v0.0.0-20210724114720-f05682cc3956/go.mod h1:Qngq2Uh3brZ3S8B2psieMfpHxSOCIDYDiYiiNROIy28=
 github.com/klauspost/compress v1.10.3 h1:OP96hzwJVBIHYU52pVTI6CczrxPvrGfgqF9N5eTO0Q8=

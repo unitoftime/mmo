@@ -1,13 +1,14 @@
 package mmo
 
 import (
+	"log"
 	"time"
 	"math"
 	"net"
 
 	"go.nanomsg.org/mangos/v3"
 
-	"github.com/jstewart7/mmo/engine/ecs"
+	"github.com/jstewart7/ecs"
 	"github.com/jstewart7/mmo/engine/tilemap"
 	"github.com/jstewart7/mmo/engine/physics"
 	"github.com/jstewart7/mmo/engine/pgen"
@@ -25,7 +26,7 @@ func SpawnPoint() physics.Transform {
 	return spawnPoint
 }
 
-func LoadGame(engine *ecs.Engine) *tilemap.Tilemap {
+func LoadGame(world *ecs.World) *tilemap.Tilemap {
 	// Create Tilemap
 	tmap := CreateTilemap(seed, mapSize, tileSize)
 
@@ -37,15 +38,15 @@ type User struct {
 	Name string // TODO - remove and put into a component called "DisplayName"
 	Id uint64
 }
-func (t *User) ComponentSet(val interface{}) { *t = val.(User) }
+// func (t *User) ComponentSet(val interface{}) { *t = val.(User) }
 
 type Body struct {
 }
-func (t *Body) ComponentSet(val interface{}) { *t = val.(Body) }
+// func (t *Body) ComponentSet(val interface{}) { *t = val.(Body) }
 
 type ClientOwned struct {
 }
-func (t *ClientOwned) ComponentSet(val interface{}) { *t = val.(ClientOwned) }
+// func (t *ClientOwned) ComponentSet(val interface{}) { *t = val.(ClientOwned) }
 
 const (
 	GrassTile tilemap.TileType = iota
@@ -98,45 +99,45 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tilemap.Tilemap {
 	return tmap
 }
 
-func CreatePhysicsSystems(engine *ecs.Engine) []ecs.System {
+func CreatePhysicsSystems(world *ecs.World) []ecs.System {
 	physicsSystems := []ecs.System{
 		ecs.System{"HandleInput", func(dt time.Duration) {
-			physics.HandleInput(engine, dt)
+			physics.HandleInput(world, dt)
 		}},
 	}
 	return physicsSystems
 }
 
-func CreateClientSystems(engine *ecs.Engine, conn net.Conn) []ecs.System {
+func CreateClientSystems(world *ecs.World, conn net.Conn) []ecs.System {
 	clientSystems := []ecs.System{
 		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
-			ClientSendUpdate(engine, conn)
+			ClientSendUpdate(world, conn)
 		}},
 	}
 
-	physicsSystems := CreatePhysicsSystems(engine)
+	physicsSystems := CreatePhysicsSystems(world)
 	clientSystems = append(clientSystems, physicsSystems...)
 	return clientSystems
 }
 
-func CreateServerSystems(engine *ecs.Engine, sock mangos.Socket, networkChannel chan serdes.WorldUpdate) []ecs.System {
+func CreateServerSystems(world *ecs.World, sock mangos.Socket, networkChannel chan serdes.WorldUpdate) []ecs.System {
 	serverSystems := []ecs.System{
-		CreatePollNetworkSystem(engine, networkChannel),
+		CreatePollNetworkSystem(world, networkChannel),
 	}
 
 	serverSystems = append(serverSystems,
-		CreatePhysicsSystems(engine)...)
+		CreatePhysicsSystems(world)...)
 
 	serverSystems = append(serverSystems, []ecs.System{
 		ecs.System{"ServerSendUpdate", func(dt time.Duration) {
-			ServerSendUpdate(engine, sock)
+			ServerSendUpdate(world, sock)
 		}},
 	}...)
 
 	return serverSystems
 }
 
-func CreatePollNetworkSystem(engine *ecs.Engine, networkChannel chan serdes.WorldUpdate) ecs.System {
+func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldUpdate) ecs.System {
 	sys := ecs.System{"PollNetworkChannel", func(dt time.Duration) {
 
 	MainLoop:
@@ -146,11 +147,15 @@ func CreatePollNetworkSystem(engine *ecs.Engine, networkChannel chan serdes.Worl
 				// log.Println(update)
 				// ecs.Write(engine, update.Id, update.Component)
 				for id, compList := range update.WorldData {
-					for i := range compList {
-						// fmt.Printf("HERE %T", compList[i])
-						// log.Println(compList[i])
-						ecs.Write(engine, id, compList[i])
-					}
+					log.Println("CompList:", compList)
+					ecs.Write(world, id, compList...)
+
+					// for i := range compList {
+					// 	// fmt.Printf("HERE %T", compList[i])
+					// 	// log.Println(compList[i])
+
+					// 	ecs.Write(engine, id, compList[i])
+					// }
 				}
 			default:
 				break MainLoop
@@ -160,3 +165,4 @@ func CreatePollNetworkSystem(engine *ecs.Engine, networkChannel chan serdes.Worl
 
 	return sys
 }
+

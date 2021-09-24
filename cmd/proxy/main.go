@@ -17,7 +17,7 @@ import (
 	_ "go.nanomsg.org/mangos/v3/transport/tcp"
 
 	"github.com/jstewart7/mmo/serdes"
-	"github.com/jstewart7/mmo/engine/ecs"
+	"github.com/jstewart7/ecs"
 )
 
 func main() {

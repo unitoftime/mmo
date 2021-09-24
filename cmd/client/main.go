@@ -13,9 +13,10 @@ import (
 
 	"nhooyr.io/websocket"
 
+	"github.com/jstewart7/ecs"
+
 	"github.com/jstewart7/mmo"
 	"github.com/jstewart7/mmo/serdes"
-	"github.com/jstewart7/mmo/engine/ecs"
 	"github.com/jstewart7/mmo/engine/asset"
 	"github.com/jstewart7/mmo/engine/render"
 	"github.com/jstewart7/mmo/engine/physics"
@@ -62,10 +63,10 @@ func runGame() {
 
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
-	engine := ecs.NewEngine()
-	go mmo.ClientReceive(engine, conn, networkChannel)
+	world := ecs.NewWorld()
+	go mmo.ClientReceive(world, conn, networkChannel)
 
-	tmap := mmo.LoadGame(engine)
+	tmap := mmo.LoadGame(world)
 
 	grassTile, err := spritesheet.Get("grass.png")
 	check(err)
@@ -93,25 +94,26 @@ func runGame() {
 	quit.Set(false)
 
 	inputSystems := []ecs.System{
-		mmo.CreatePollNetworkSystem(engine, networkChannel),
+		mmo.CreatePollNetworkSystem(world, networkChannel),
 		ecs.System{"InterpolateSpritePositions", func(dt time.Duration) {
-			render.InterpolateSpritePositions(engine, dt)
+			render.InterpolateSpritePositions(world, dt)
 		}},
 		ecs.System{"BodyToSprite", func(dt time.Duration) {
-			ecs.Each(engine, mmo.Body{}, func(id ecs.Id, a interface{}) {
-
+			// TODO - would like to create the entire entity at once
+			view := ecs.ViewAll(world, &mmo.Body{})
+			view.Map(func(id ecs.Id, comp ...interface{}) {
 				// TODO - We should really have a login-response-handling function
 				sprite := render.Sprite{}
-				ok := ecs.Read(engine, id, &sprite)
+				ok := ecs.Read(world, id, &sprite)
 				if !ok {
-					ecs.Write(engine, id, render.Sprite{
+					ecs.Write(world, id, render.Sprite{
 						Position: pixel.ZV, // TODO - just read this from transform
 						Sprite: manSprite,
 					})
 
 					// TODO - put into a login message
-					ecs.Write(engine, id, physics.Input{})
-					ecs.Write(engine, id, render.Keybinds{
+					ecs.Write(world, id, physics.Input{})
+					ecs.Write(world, id, render.Keybinds{
 						Up: pixelgl.KeyW,
 						Down: pixelgl.KeyS,
 						Left: pixelgl.KeyA,
@@ -132,21 +134,26 @@ func runGame() {
 			}
 		}},
 		ecs.System{"CaptureInput", func(dt time.Duration) {
-			render.CaptureInput(win, engine)
+			render.CaptureInput(win, world)
 		}},
 	}
 
-	physicsSystems := mmo.CreateClientSystems(engine, conn)
+	physicsSystems := mmo.CreateClientSystems(world, conn)
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
-			ecs.Each(engine, mmo.ClientOwned{}, func(id ecs.Id, a interface{}) {
-				sprite := render.Sprite{}
-				ok := ecs.Read(engine, id, &sprite)
-				if ok {
-					camera.Position = sprite.Position
-				}
+			view := ecs.ViewAll(world, &mmo.ClientOwned{}, &render.Sprite{})
+			view.Map(func(id ecs.Id, comp ...interface{}) {
+				sprite := comp[1].(*render.Sprite)
+				camera.Position = sprite.Position
 			})
+			// 	// ecs.Each(engine, mmo.ClientOwned{}, func(id ecs.Id, a interface{}) {
+			// 	sprite := render.Sprite{}
+			// 	ok := ecs.Read(engine, id, &sprite)
+			// 	if ok {
+			// 		camera.Position = sprite.Position
+			// 	}
+			// })
 
 			camera.Update()
 		}},
@@ -156,7 +163,7 @@ func runGame() {
 			win.SetMatrix(camera.Mat())
 			tmapRender.Draw(win)
 
-			render.DrawSprites(win, engine)
+			render.DrawSprites(win, world)
 
 			win.SetMatrix(pixel.IM)
 		}},
@@ -167,4 +174,3 @@ func runGame() {
 
 	ecs.RunGame(inputSystems, physicsSystems, renderSystems, &quit)
 }
-

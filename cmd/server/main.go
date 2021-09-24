@@ -8,8 +8,9 @@ import (
 	"go.nanomsg.org/mangos/v3/protocol/pair"
 	_ "go.nanomsg.org/mangos/v3/transport/tcp"
 
+	"github.com/jstewart7/ecs"
+
 	"github.com/jstewart7/mmo"
-	"github.com/jstewart7/mmo/engine/ecs"
 	"github.com/jstewart7/mmo/serdes"
 )
 
@@ -29,7 +30,7 @@ func main() {
 	}
 
 	// Load Game
-	engine := ecs.NewEngine()
+	engine := ecs.NewWorld()
 	_ = mmo.LoadGame(engine)
 
 	// TODO - make configurable

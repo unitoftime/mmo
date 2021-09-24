@@ -6,7 +6,8 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 	flatmsg "github.com/jstewart7/mmo/flat/msg"
 
-	"github.com/jstewart7/mmo/engine/ecs"
+	"github.com/jstewart7/ecs"
+	// "github.com/jstewart7/mmo"
 	"github.com/jstewart7/mmo/engine/physics"
 )
 
@@ -79,6 +80,12 @@ func MarshalWorldUpdateMessage(update WorldUpdate) ([]byte, error) {
 				inputMsg := flatmsg.CreateInput(builder,
 					t.Up, t.Down, t.Left, t.Right)
 				flatmsg.EntityAddInput(builder, inputMsg)
+			// case mmo.Body:
+			// 	bodyMsg := flatmsg.CreateBody(builder,
+			// 		1)
+			// 	flatmsg.EntityAddBody(builder, bodyMsg)
+			// default:
+			// 	return nil, fmt.Errorf("Unknown component %t", comp)
 			}
 		}
 

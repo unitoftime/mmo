@@ -2,29 +2,32 @@ package physics
 
 import (
 	"time"
-	"github.com/jstewart7/mmo/engine/ecs"
+	"github.com/jstewart7/ecs"
 )
 
 type Transform struct {
 	X, Y float64
 }
-func (t *Transform) ComponentSet(val interface{}) { *t = val.(Transform) }
 
 type Input struct {
 	Up, Down, Left, Right bool
 }
-func (t *Input) ComponentSet(val interface{}) { *t = val.(Input) }
 
-func HandleInput(engine *ecs.Engine, dt time.Duration) {
-	ecs.Each(engine, Input{}, func(id ecs.Id, a interface{}) {
-		input := a.(Input)
+func HandleInput(world *ecs.World, dt time.Duration) {
+	view := ecs.ViewAll(world, &Input{}, &Transform{})
+	view.Map(func(id ecs.Id, comp ...interface{}) {
+		input := comp[0].(*Input)
+		transform := comp[1].(*Transform)
+		// ecs.Each(engine, Input{}, func(id ecs.Id, a interface{}) {
+		// input := a.(Input)
+		// // Note: 100 good starting point, 200 seemed like a good max
+		// speed := 125.0
+		// transform := Transform{}
+		// ok := ecs.Read(engine, id, &transform)
+		// if !ok { return }
 
 		// Note: 100 good starting point, 200 seemed like a good max
 		speed := 125.0
-
-		transform := Transform{}
-		ok := ecs.Read(engine, id, &transform)
-		if !ok { return }
 
 		if input.Left {
 			transform.X -= speed * dt.Seconds()
@@ -39,6 +42,6 @@ func HandleInput(engine *ecs.Engine, dt time.Duration) {
 			transform.Y -= speed * dt.Seconds()
 		}
 
-		ecs.Write(engine, id, transform)
+		// ecs.Write(engine, id, transform)
 	})
 }

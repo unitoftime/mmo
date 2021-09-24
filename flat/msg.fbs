@@ -30,6 +30,7 @@ table Entity {
   id:uint32;
   transform:Transform;
   input:Input;
+  body:Body;
 
   // mana:short = 150;
   // hp:short = 100;
@@ -51,4 +52,8 @@ struct Input {
   down:bool;
   left:bool;
   right:bool;
+}
+
+struct Body {
+  val:uint32;
 }

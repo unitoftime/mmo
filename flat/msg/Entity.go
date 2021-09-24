@@ -71,8 +71,21 @@ func (rcv *Entity) Input(obj *Input) *Input {
 	return nil
 }
 
+func (rcv *Entity) Body(obj *Body) *Body {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
+	if o != 0 {
+		x := o + rcv._tab.Pos
+		if obj == nil {
+			obj = new(Body)
+		}
+		obj.Init(rcv._tab.Bytes, x)
+		return obj
+	}
+	return nil
+}
+
 func EntityStart(builder *flatbuffers.Builder) {
-	builder.StartObject(3)
+	builder.StartObject(4)
 }
 func EntityAddId(builder *flatbuffers.Builder, id uint32) {
 	builder.PrependUint32Slot(0, id, 0)
@@ -82,6 +95,9 @@ func EntityAddTransform(builder *flatbuffers.Builder, transform flatbuffers.UOff
 }
 func EntityAddInput(builder *flatbuffers.Builder, input flatbuffers.UOffsetT) {
 	builder.PrependStructSlot(2, flatbuffers.UOffsetT(input), 0)
+}
+func EntityAddBody(builder *flatbuffers.Builder, body flatbuffers.UOffsetT) {
+	builder.PrependStructSlot(3, flatbuffers.UOffsetT(body), 0)
 }
 func EntityEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()

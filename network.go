@@ -6,7 +6,7 @@ import (
 
 	"go.nanomsg.org/mangos/v3"
 
-	"github.com/jstewart7/mmo/engine/ecs"
+	"github.com/jstewart7/ecs"
 	"github.com/jstewart7/mmo/engine/physics"
 	"github.com/jstewart7/mmo/serdes"
 )
@@ -16,18 +16,22 @@ type Websocket struct {
 }
 func (t *Websocket) ComponentSet(val interface{}) { *t = val.(Websocket) }
 
-func ClientSendUpdate(engine *ecs.Engine, conn net.Conn) {
-	ecs.Each(engine, ClientOwned{}, func(id ecs.Id, a interface{}) {
-		input := physics.Input{}
-		ok := ecs.Read(engine, id, &input)
-		if !ok {
-			log.Println("ERROR: Client Owned Entity should always have an input!")
-			return
-		}
+func ClientSendUpdate(world *ecs.World, conn net.Conn) {
+	view := ecs.ViewAll(world, &ClientOwned{}, &physics.Input{})
+	view.Map(func(id ecs.Id, comp ...interface{}) {
+		input := comp[1].(*physics.Input)
+	// ecs.Each(engine, ClientOwned{}, func(id ecs.Id, a interface{}) {
+
+		// input := physics.Input{}
+		// ok := ecs.Read(engine, id, &input)
+		// if !ok {
+		// 	log.Println("ERROR: Client Owned Entity should always have an input!")
+		// 	return
+		// }
 
 		update := serdes.WorldUpdate{
 			WorldData: map[ecs.Id][]interface{}{
-				id: []interface{}{input},
+				id: []interface{}{*input},
 			},
 		}
 		log.Println("ClientSendUpdate:", update)
@@ -44,7 +48,7 @@ func ClientSendUpdate(engine *ecs.Engine, conn net.Conn) {
 	})
 }
 
-func ClientReceive(engine *ecs.Engine, conn net.Conn, networkChannel chan serdes.WorldUpdate) {
+func ClientReceive(world *ecs.World, conn net.Conn, networkChannel chan serdes.WorldUpdate) {
 	const MaxMsgSize int = 4 * 1024
 
 	msg := make([]byte, MaxMsgSize)
@@ -69,15 +73,16 @@ func ClientReceive(engine *ecs.Engine, conn net.Conn, networkChannel chan serdes
 			networkChannel <- t
 		case serdes.ClientLoginResp:
 			log.Println("serdes.ClientLoginResp", t)
-			ecs.Write(engine, ecs.Id(t.Id), ClientOwned{})
-			ecs.Write(engine, ecs.Id(t.Id), Body{})
+			// ecs.Write(engine, ecs.Id(t.Id), ClientOwned{})
+			// ecs.Write(engine, ecs.Id(t.Id), Body{})
+			ecs.Write(world, ecs.Id(t.Id), ClientOwned{}, Body{})
 		default:
 			panic("Unknown message type")
 		}
 	}
 }
 
-func ServerSendUpdate(engine *ecs.Engine, sock mangos.Socket) {
+func ServerSendUpdate(world *ecs.World, sock mangos.Socket) {
 	// transformList := make([]TransformUpdate, 0)
 
 	update := serdes.WorldUpdate{
@@ -85,48 +90,60 @@ func ServerSendUpdate(engine *ecs.Engine, sock mangos.Socket) {
 		WorldData: make(map[ecs.Id][]interface{}),
 	}
 
-	ecs.Each(engine, physics.Transform{}, func(id ecs.Id, a interface{}) {
-		transform := a.(physics.Transform)
-		body := Body{}
-		ok := ecs.Read(engine, id, &body)
-		if !ok { return }
+	{
+		view := ecs.ViewAll(world, &physics.Transform{}, &Body{})
+		view.Map(func(id ecs.Id, comp ...interface{}) {
+			transform := comp[0].(*physics.Transform)
+			body := comp[1].(*Body)
+			// ecs.Each(engine, physics.Transform{}, func(id ecs.Id, a interface{}) {
+			// transform := a.(physics.Transform)
 
-		// transformUpdate, err := NewTransformUpdate(id, transform)
-		// if err != nil {
-		// 	log.Println(err)
-		// 	return
-		// }
+			// body := Body{}
+			// ok := ecs.Read(engine, id, &body)
+			// if !ok { return }
 
-		// transformList = append(transformList, transformUpdate)
+			// transformUpdate, err := NewTransformUpdate(id, transform)
+			// if err != nil {
+			// 	log.Println(err)
+			// 	return
+			// }
 
-		compList := []interface{}{
-			transform,
-			body,
-		}
-		update.WorldData[id] = compList
-	})
+			// transformList = append(transformList, transformUpdate)
 
-	ecs.Each(engine, User{}, func(id ecs.Id, a interface{}) {
-		user := a.(User)
+			compList := []interface{}{
+				*transform,
+				*body,
+			}
+			update.WorldData[id] = compList
+		})
+	}
 
-		log.Println("ServerSendUpdate WorldUpdate:", update)
+	{
+		view := ecs.ViewAll(world, &User{})
+		view.Map(func(id ecs.Id, comp ...interface{}) {
+			user := comp[0].(*User)
+			// ecs.Each(engine, User{}, func(id ecs.Id, a interface{}) {
+			// user := a.(User)
 
-		update.UserId = user.Id
-		serializedUpdate, err := serdes.MarshalWorldUpdateMessage(update)
-		if err != nil {
-			log.Println("Error Marshalling", err)
-			return
-		}
+			log.Println("ServerSendUpdate WorldUpdate:", update)
 
-		err = sock.Send(serializedUpdate)
-		if err != nil {
-			log.Println("Error Sending:", err)
-			return
-		}
-	})
+			update.UserId = user.Id
+			serializedUpdate, err := serdes.MarshalWorldUpdateMessage(update)
+			if err != nil {
+				log.Println("Error Marshalling", err)
+				return
+			}
+
+			err = sock.Send(serializedUpdate)
+			if err != nil {
+				log.Println("Error Sending:", err)
+				return
+			}
+		})
+	}
 }
 
-func ServeProxyConnection(sock mangos.Socket, engine *ecs.Engine, networkChannel chan serdes.WorldUpdate) {
+func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel chan serdes.WorldUpdate) {
 	log.Println("Server: ServeProxyConnection")
 	loginMap := make(map[uint64]ecs.Id)
 
@@ -149,7 +166,7 @@ func ServeProxyConnection(sock mangos.Socket, engine *ecs.Engine, networkChannel
 			id := loginMap[t.UserId]
 			// TODO - requires client to put their input on spot 0
 			componentList := t.WorldData[id]
-			input, ok := componentList[id].(physics.Input)
+			input, ok := componentList[0].(physics.Input) // TODO - should id be replaced with 0?
 			if !ok { continue }
 
 			trustedUpdate := serdes.WorldUpdate{
@@ -166,14 +183,22 @@ func ServeProxyConnection(sock mangos.Socket, engine *ecs.Engine, networkChannel
 			// TODO - put into a function
 			// TODO - not thread safe! Concurrent map access
 			// TODO - Refactor networking layer to have an RPC functionality
-			id := engine.NewId()
-			ecs.Write(engine, id, User{
+			id := world.NewId()
+			ecs.Write(world, id, User{
 				Id: t.UserId,
-			})
-			ecs.Write(engine, id, physics.Input{})
-			ecs.Write(engine, id, Body{})
-			ecs.Write(engine, id, SpawnPoint())
-			log.Println("Logging in player:", id)
+			},
+				physics.Input{},
+				Body{},
+				SpawnPoint(),
+			)
+			// id := engine.NewId()
+			// ecs.Write(engine, id, User{
+			// 	Id: t.UserId,
+			// })
+			// ecs.Write(engine, id, physics.Input{})
+			// ecs.Write(engine, id, Body{})
+			// ecs.Write(engine, id, SpawnPoint())
+			// log.Println("Logging in player:", id)
 
 			loginMap[t.UserId] = id
 			loginResp := serdes.MarshalClientLoginRespMessage(t.UserId, id)
