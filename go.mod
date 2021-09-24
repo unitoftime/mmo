@@ -4,9 +4,10 @@ go 1.16
 
 require (
 	github.com/faiface/pixel v0.10.0
-	github.com/google/flatbuffers v2.0.0+incompatible // indirect
-	github.com/jstewart7/packer v0.0.0-20210724114720-f05682cc3956 // indirect
-	github.com/ojrac/opensimplex-go v1.0.2 // indirect
-	go.nanomsg.org/mangos/v3 v3.2.1 // indirect
-	nhooyr.io/websocket v1.8.7 // indirect
+	github.com/google/flatbuffers v2.0.0+incompatible
+	github.com/jstewart7/packer v0.0.0-20210724114720-f05682cc3956
+	github.com/ojrac/opensimplex-go v1.0.2
+	github.com/ungerik/go3d v0.0.0-20210728072715-20a26e3f077d
+	go.nanomsg.org/mangos/v3 v3.2.1
+	nhooyr.io/websocket v1.8.7
 )
