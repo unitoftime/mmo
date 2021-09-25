@@ -7,7 +7,7 @@ import (
 	"go.nanomsg.org/mangos/v3"
 
 	"github.com/jstewart7/ecs"
-	"github.com/jstewart7/mmo/engine/physics"
+	"github.com/jstewart7/flow/physics"
 	"github.com/jstewart7/mmo/serdes"
 )
 

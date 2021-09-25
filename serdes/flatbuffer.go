@@ -8,7 +8,7 @@ import (
 
 	"github.com/jstewart7/ecs"
 	// "github.com/jstewart7/mmo"
-	"github.com/jstewart7/mmo/engine/physics"
+	"github.com/jstewart7/flow/physics"
 )
 
 type WorldUpdate struct {

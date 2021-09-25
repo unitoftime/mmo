@@ -17,10 +17,10 @@ import (
 
 	"github.com/jstewart7/mmo"
 	"github.com/jstewart7/mmo/serdes"
-	"github.com/jstewart7/mmo/engine/asset"
-	"github.com/jstewart7/mmo/engine/render"
-	"github.com/jstewart7/mmo/engine/physics"
-	"github.com/jstewart7/mmo/engine/tilemap"
+	"github.com/jstewart7/flow/asset"
+	"github.com/jstewart7/flow/render"
+	"github.com/jstewart7/flow/physics"
+	"github.com/jstewart7/flow/tilemap"
 )
 
 func check(err error) {
