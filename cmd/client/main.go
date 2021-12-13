@@ -8,12 +8,12 @@ import (
 	"log"
 	"context"
 
-	"github.com/faiface/pixel"
-	"github.com/faiface/pixel/pixelgl"
-
 	"nhooyr.io/websocket"
 
 	"github.com/jstewart7/ecs"
+
+	"github.com/jstewart7/glitch"
+	"github.com/jstewart7/glitch/shaders"
 
 	"github.com/jstewart7/mmo"
 	"github.com/jstewart7/mmo/serdes"
@@ -30,7 +30,7 @@ func check(err error) {
 }
 
 func main() {
-	pixelgl.Run(runGame)
+	glitch.Run(runGame)
 }
 
 func runGame() {
@@ -46,16 +46,29 @@ func runGame() {
 	conn := websocket.NetConn(ctx, c, websocket.MessageBinary)
 
 	// Setup Pixel
-	cfg := pixelgl.WindowConfig{
-		Title: "MMO",
-		Bounds: pixel.R(0, 0, 1024, 768),
-		VSync: true,
-		Resizable: true,
-	}
+	// cfg := pixelgl.WindowConfig{
+	// 	Title: "MMO",
+	// 	Bounds: pixel.R(0, 0, 1024, 768),
+	// 	VSync: true,
+	// 	Resizable: true,
+	// }
+	win, err := glitch.NewWindow(1920, 1080, "MMO", glitch.WindowConfig{
+		Vsync: true,
+	})
 
-	win, err := pixelgl.NewWindow(cfg)
+	// win, err := pixelgl.NewWindow(cfg)
 	check(err)
-	win.SetSmooth(false)
+	// win.SetSmooth(false)
+
+	// camera := glitch.NewCameraOrtho()
+	// camera.SetOrtho2D(win)
+	// camera.SetView2D(0, 0, 1.0, 1.0)
+
+	shader, err := glitch.NewShader(shaders.SpriteShader)
+	if err != nil { panic(err) }
+
+	pass := glitch.NewRenderPass(shader)
+	tilemapPass := glitch.NewRenderPass(shader)
 
 	load := asset.NewLoad(os.DirFS("./"))
 	spritesheet, err := load.Spritesheet("packed.json")
@@ -74,13 +87,15 @@ func runGame() {
 	check(err)
 	waterTile, err := spritesheet.Get("water.png")
 	check(err)
+	log.Println(*waterTile)
 
-	tmapRender := render.NewTilemapRender(spritesheet, map[tilemap.TileType]*pixel.Sprite{
+	tmapRender := render.NewTilemapRender(spritesheet, map[tilemap.TileType]*glitch.Sprite{
 		mmo.GrassTile: grassTile,
 		mmo.DirtTile: dirtTile,
 		mmo.WaterTile: waterTile,
-	})
+	}, tilemapPass)
 
+	tmapRender.Clear()
 	tmapRender.Batch(tmap)
 
 	// Create people
@@ -95,9 +110,9 @@ func runGame() {
 
 	inputSystems := []ecs.System{
 		mmo.CreatePollNetworkSystem(world, networkChannel),
-		ecs.System{"InterpolateSpritePositions", func(dt time.Duration) {
-			render.InterpolateSpritePositions(world, dt)
-		}},
+		// ecs.System{"InterpolateSpritePositions", func(dt time.Duration) {
+		// 	render.InterpolateSpritePositions(world, dt)
+		// }},
 		ecs.System{"BodyToSprite", func(dt time.Duration) {
 			// TODO - would like to create the entire entity at once
 			view := ecs.ViewAll(world, &mmo.Body{})
@@ -106,30 +121,29 @@ func runGame() {
 				sprite := render.Sprite{}
 				ok := ecs.Read(world, id, &sprite)
 				if !ok {
-					ecs.Write(world, id, render.Sprite{
-						Position: pixel.ZV, // TODO - just read this from transform
-						Sprite: manSprite,
-					})
+					ecs.Write(world, id, render.NewSprite(
+						// Position: pixel.ZV, // TODO - just read this from transform
+						manSprite))
 
 					// TODO - put into a login message
 					ecs.Write(world, id, physics.Input{})
 					ecs.Write(world, id, render.Keybinds{
-						Up: pixelgl.KeyW,
-						Down: pixelgl.KeyS,
-						Left: pixelgl.KeyA,
-						Right: pixelgl.KeyD,
+						Up: glitch.KeyW,
+						Down: glitch.KeyS,
+						Left: glitch.KeyA,
+						Right: glitch.KeyD,
 					})
 				}
 			})
 		}},
 		ecs.System{"MouseInput", func(dt time.Duration) {
 			// TODO - move to other system
-			scroll := win.MouseScroll()
-			if scroll.Y != 0 {
-				camera.Zoom += zoomSpeed * scroll.Y
+			_, scrollY := win.MouseScroll()
+			if scrollY != 0 {
+				camera.Zoom += zoomSpeed * scrollY
 			}
 
-			if win.JustPressed(pixelgl.KeyEscape) {
+			if win.Pressed(glitch.KeyBackspace) {
 				quit.Set(true)
 			}
 		}},
@@ -142,10 +156,13 @@ func runGame() {
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
-			view := ecs.ViewAll(world, &mmo.ClientOwned{}, &render.Sprite{})
+			view := ecs.ViewAll(world, &mmo.ClientOwned{}, &physics.Transform{})
 			view.Map(func(id ecs.Id, comp ...interface{}) {
-				sprite := comp[1].(*render.Sprite)
-				camera.Position = sprite.Position
+				transform := comp[1].(*physics.Transform)
+				log.Println("Update Camera", transform)
+				// sprite := comp[1].(*render.Sprite)
+				// camera.Position = sprite.Position
+				camera.Position = glitch.Vec2{float32(transform.X), float32(transform.Y)}
 			})
 			// 	// ecs.Each(engine, mmo.ClientOwned{}, func(id ecs.Id, a interface{}) {
 			// 	sprite := render.Sprite{}
@@ -158,14 +175,22 @@ func runGame() {
 			camera.Update()
 		}},
 		ecs.System{"Draw", func(dt time.Duration) {
-			win.Clear(pixel.RGB(0, 0, 0))
+			glitch.Clear(glitch.RGBA{0, 0, 0, 1.0})
 
-			win.SetMatrix(camera.Mat())
-			tmapRender.Draw(win)
+			// win.SetMatrix(camera.Mat())
+			// tmapRender.Draw(win)
 
-			render.DrawSprites(win, world)
+			pass.Clear()
+			render.DrawSprites(pass, world)
 
-			win.SetMatrix(pixel.IM)
+			// win.SetMatrix(pixel.IM)
+			tilemapPass.SetUniform("projection", camera.Camera.Projection)
+			tilemapPass.SetUniform("view", camera.Camera.View)
+			tilemapPass.Draw(win)
+
+			pass.SetUniform("projection", camera.Camera.Projection)
+			pass.SetUniform("view", camera.Camera.View)
+			pass.Draw(win)
 		}},
 		ecs.System{"UpdateWindow", func(dt time.Duration) {
 			win.Update()

@@ -2,9 +2,9 @@
 
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
-go run ./server &
+gotip run ./server &
 sleep 1
-go run ./proxy &
+gotip run ./proxy &
 sleep 1
-cd client && go run .
+cd client && gotip run .
 
