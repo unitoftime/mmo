@@ -8,10 +8,10 @@ import (
 	"go.nanomsg.org/mangos/v3/protocol/pair"
 	_ "go.nanomsg.org/mangos/v3/transport/tcp"
 
-	"github.com/jstewart7/ecs"
+	"github.com/unitoftime/ecs"
 
-	"github.com/jstewart7/mmo"
-	"github.com/jstewart7/mmo/serdes"
+	"github.com/unitoftime/mmo"
+	"github.com/unitoftime/mmo/serdes"
 )
 
 func main() {

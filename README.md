@@ -10,7 +10,7 @@ If you have any feedback let me know!
 ### Compiling and Running
 Get the code
 ```
-go get github.com/jstewart7/mmo
+go get github.com/unitoftime/mmo
 ```
 
 Run the code
