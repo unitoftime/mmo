@@ -7,4 +7,3 @@ sleep 1
 gotip run ./proxy &
 sleep 1
 cd client && gotip run .
-

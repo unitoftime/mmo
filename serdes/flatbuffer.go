@@ -13,7 +13,7 @@ import (
 
 type WorldUpdate struct {
 	UserId uint64
-	WorldData map[ecs.Id][]interface{}
+	WorldData map[ecs.Id][]ecs.Component
 }
 
 type ClientLogin struct {
@@ -73,12 +73,14 @@ func MarshalWorldUpdateMessage(update WorldUpdate) ([]byte, error) {
 
 		for _,comp := range compList {
 			switch t := comp.(type) {
-			case physics.Transform:
-				transformMsg := flatmsg.CreateTransform(builder, t.X, t.Y)
+			case ecs.CompBox[physics.Transform]:
+				transform := t.Get()
+				transformMsg := flatmsg.CreateTransform(builder, transform.X, transform.Y)
 				flatmsg.EntityAddTransform(builder, transformMsg)
-			case physics.Input:
+			case ecs.CompBox[physics.Input]:
+				input := t.Get()
 				inputMsg := flatmsg.CreateInput(builder,
-					t.Up, t.Down, t.Left, t.Right)
+					input.Up, input.Down, input.Left, input.Right)
 				flatmsg.EntityAddInput(builder, inputMsg)
 			// case mmo.Body:
 			// 	bodyMsg := flatmsg.CreateBody(builder,
@@ -134,7 +136,7 @@ func UnmarshalMessage(buf []byte) (interface{}, error) {
 		worldUpdate := new(flatmsg.WorldUpdate)
 		worldUpdate.Init(payloadUnion.Bytes, payloadUnion.Pos)
 
-		worldData := make(map[ecs.Id][]interface{})
+		worldData := make(map[ecs.Id][]ecs.Component)
 
 		length := worldUpdate.EntitiesLength()
 		for i := 0; i < length; i++ {
@@ -144,27 +146,27 @@ func UnmarshalMessage(buf []byte) (interface{}, error) {
 				return nil, fmt.Errorf("Unable to access entity at index %d", i)
 			}
 
-			compList := make([]interface{}, 0)
+			compList := make([]ecs.Component, 0)
 
 			transform := entity.Transform(nil)
 			if transform != nil {
 				// log.Println(entity.Transform(nil).X())
 				// log.Println(entity.Transform(nil).Y())
-				compList = append(compList, physics.Transform{
+				compList = append(compList, ecs.C(physics.Transform{
 					X: transform.X(),
 					Y: transform.Y(),
-				})
+				}))
 			}
 
 			input := entity.Input(nil)
 			if input != nil {
 				// log.Println("Input", input.Up(), input.Down(), input.Left(), input.Right())
-				compList = append(compList, physics.Input{
+				compList = append(compList, ecs.C(physics.Input{
 					Up: input.Up(),
 					Down: input.Down(),
 					Left: input.Left(),
 					Right: input.Right(),
-				})
+				}))
 			}
 
 			// log.Println(entity.Id())

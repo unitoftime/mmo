@@ -17,9 +17,10 @@ type Websocket struct {
 func (t *Websocket) ComponentSet(val interface{}) { *t = val.(Websocket) }
 
 func ClientSendUpdate(world *ecs.World, conn net.Conn) {
-	view := ecs.ViewAll(world, &ClientOwned{}, &physics.Input{})
-	view.Map(func(id ecs.Id, comp ...interface{}) {
-		input := comp[1].(*physics.Input)
+	ecs.Map2(world, func(id ecs.Id, _ *ClientOwned, input *physics.Input) {
+	// view := ecs.ViewAll(world, &ClientOwned{}, &physics.Input{})
+	// view.Map(func(id ecs.Id, comp ...interface{}) {
+	// 	input := comp[1].(*physics.Input)
 	// ecs.Each(engine, ClientOwned{}, func(id ecs.Id, a interface{}) {
 
 		// input := physics.Input{}
@@ -30,8 +31,8 @@ func ClientSendUpdate(world *ecs.World, conn net.Conn) {
 		// }
 
 		update := serdes.WorldUpdate{
-			WorldData: map[ecs.Id][]interface{}{
-				id: []interface{}{*input},
+			WorldData: map[ecs.Id][]ecs.Component{
+				id: []ecs.Component{ecs.C(*input)},
 			},
 		}
 		log.Println("ClientSendUpdate:", update)
@@ -75,7 +76,7 @@ func ClientReceive(world *ecs.World, conn net.Conn, networkChannel chan serdes.W
 			log.Println("serdes.ClientLoginResp", t)
 			// ecs.Write(engine, ecs.Id(t.Id), ClientOwned{})
 			// ecs.Write(engine, ecs.Id(t.Id), Body{})
-			ecs.Write(world, ecs.Id(t.Id), ClientOwned{}, Body{})
+			ecs.Write(world, ecs.Id(t.Id), ecs.C(ClientOwned{}), ecs.C(Body{}))
 		default:
 			panic("Unknown message type")
 		}
@@ -87,14 +88,16 @@ func ServerSendUpdate(world *ecs.World, sock mangos.Socket) {
 
 	update := serdes.WorldUpdate{
 		UserId: 0,
-		WorldData: make(map[ecs.Id][]interface{}),
+		WorldData: make(map[ecs.Id][]ecs.Component),
 	}
 
 	{
-		view := ecs.ViewAll(world, &physics.Transform{}, &Body{})
-		view.Map(func(id ecs.Id, comp ...interface{}) {
-			transform := comp[0].(*physics.Transform)
-			body := comp[1].(*Body)
+		ecs.Map2(world, func(id ecs.Id, transform *physics.Transform, body *Body) {
+		// view := ecs.ViewAll(world, &physics.Transform{}, &Body{})
+		// view.Map(func(id ecs.Id, comp ...interface{}) {
+			// transform := comp[0].(*physics.Transform)
+			// body := comp[1].(*Body)
+
 			// ecs.Each(engine, physics.Transform{}, func(id ecs.Id, a interface{}) {
 			// transform := a.(physics.Transform)
 
@@ -110,18 +113,19 @@ func ServerSendUpdate(world *ecs.World, sock mangos.Socket) {
 
 			// transformList = append(transformList, transformUpdate)
 
-			compList := []interface{}{
-				*transform,
-				*body,
+			compList := []ecs.Component{
+				ecs.C(*transform),
+				ecs.C(*body),
 			}
 			update.WorldData[id] = compList
 		})
 	}
 
 	{
-		view := ecs.ViewAll(world, &User{})
-		view.Map(func(id ecs.Id, comp ...interface{}) {
-			user := comp[0].(*User)
+		ecs.Map(world, func(id ecs.Id, user *User) {
+		// view := ecs.ViewAll(world, &User{})
+		// view.Map(func(id ecs.Id, comp ...interface{}) {
+			// user := comp[0].(*User)
 			// ecs.Each(engine, User{}, func(id ecs.Id, a interface{}) {
 			// user := a.(User)
 
@@ -166,12 +170,13 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 			id := loginMap[t.UserId]
 			// TODO - requires client to put their input on spot 0
 			componentList := t.WorldData[id]
-			input, ok := componentList[0].(physics.Input) // TODO - should id be replaced with 0?
+			inputBox, ok := componentList[0].(ecs.CompBox[physics.Input]) // TODO - should id be replaced with 0?
 			if !ok { continue }
+			input := inputBox.Get()
 
 			trustedUpdate := serdes.WorldUpdate{
-				WorldData: map[ecs.Id][]interface{}{
-					id: []interface{}{input},
+				WorldData: map[ecs.Id][]ecs.Component{
+					id: []ecs.Component{ecs.C(input)},
 				},
 			}
 			log.Println("TrustedUpdate:", trustedUpdate)
@@ -184,12 +189,12 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 			// TODO - not thread safe! Concurrent map access
 			// TODO - Refactor networking layer to have an RPC functionality
 			id := world.NewId()
-			ecs.Write(world, id, User{
+			ecs.Write(world, id, ecs.C(User{
 				Id: t.UserId,
-			},
-				physics.Input{},
-				Body{},
-				SpawnPoint(),
+			}),
+				ecs.C(physics.Input{}),
+				ecs.C(Body{}),
+				ecs.C(SpawnPoint()),
 			)
 			// id := engine.NewId()
 			// ecs.Write(engine, id, User{

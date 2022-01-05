@@ -115,24 +115,27 @@ func runGame() {
 		// }},
 		ecs.System{"BodyToSprite", func(dt time.Duration) {
 			// TODO - would like to create the entire entity at once
-			view := ecs.ViewAll(world, &mmo.Body{})
-			view.Map(func(id ecs.Id, comp ...interface{}) {
+			ecs.Map(world, func(id ecs.Id, body *mmo.Body) {
+			// view := ecs.ViewAll(world, &mmo.Body{})
+			// view.Map(func(id ecs.Id, comp ...interface{}) {
+
 				// TODO - We should really have a login-response-handling function
-				sprite := render.Sprite{}
-				ok := ecs.Read(world, id, &sprite)
+				// sprite := render.Sprite{}
+				// ok := ecs.Read(world, id, &sprite)
+				_, ok := ecs.Read[render.Sprite](world, id)
 				if !ok {
-					ecs.Write(world, id, render.NewSprite(
+					ecs.Write(world, id, ecs.C(render.NewSprite(
 						// Position: pixel.ZV, // TODO - just read this from transform
-						manSprite))
+						manSprite)))
 
 					// TODO - put into a login message
-					ecs.Write(world, id, physics.Input{})
-					ecs.Write(world, id, render.Keybinds{
+					ecs.Write(world, id, ecs.C(physics.Input{}))
+					ecs.Write(world, id, ecs.C(render.Keybinds{
 						Up: glitch.KeyW,
 						Down: glitch.KeyS,
 						Left: glitch.KeyA,
 						Right: glitch.KeyD,
-					})
+					}))
 				}
 			})
 		}},
@@ -156,9 +159,10 @@ func runGame() {
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
-			view := ecs.ViewAll(world, &mmo.ClientOwned{}, &physics.Transform{})
-			view.Map(func(id ecs.Id, comp ...interface{}) {
-				transform := comp[1].(*physics.Transform)
+			ecs.Map2(world, func(id ecs.Id, _ *mmo.ClientOwned, transform *physics.Transform) {
+			// view := ecs.ViewAll(world, &mmo.ClientOwned{}, &physics.Transform{})
+			// view.Map(func(id ecs.Id, comp ...interface{}) {
+			// 	transform := comp[1].(*physics.Transform)
 				log.Println("Update Camera", transform)
 				// sprite := comp[1].(*render.Sprite)
 				// camera.Position = sprite.Position
