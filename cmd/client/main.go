@@ -7,6 +7,7 @@ import (
 	"time"
 	"log"
 	"context"
+	"embed"
 
 	"runtime"
 	"runtime/pprof"
@@ -26,6 +27,9 @@ import (
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/tilemap"
 )
+
+//go:embed packed.json packed.png
+var f embed.FS
 
 func check(err error) {
 	if err != nil {
@@ -104,7 +108,8 @@ func runGame() {
 	pass := glitch.NewRenderPass(shader)
 	tilemapPass := glitch.NewRenderPass(shader)
 
-	load := asset.NewLoad(os.DirFS("./"))
+	load := asset.NewLoad(f)
+	// load := asset.NewLoad(os.DirFS("http://localhost:8081"))
 	spritesheet, err := load.Spritesheet("packed.json")
 	check(err)
 

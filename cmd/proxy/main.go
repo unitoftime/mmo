@@ -83,7 +83,9 @@ type websocketServer struct {
 }
 
 func (s websocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c, err := websocket.Accept(w, r, nil)
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		OriginPatterns: []string{"localhost:8081"}, // TODO - Refactor this once I have a good deployment format
+	})
 	if err != nil {
 		log.Println("Error Accepting Websocket:", err)
 		return
