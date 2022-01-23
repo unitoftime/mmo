@@ -1,7 +1,7 @@
 package mmo
 
 import (
-	"log"
+	// "log"
 	"time"
 	"math"
 	"net"
@@ -147,7 +147,7 @@ func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldU
 				// log.Println(update)
 				// ecs.Write(engine, update.Id, update.Component)
 				for id, compList := range update.WorldData {
-					log.Println("CompList:", id, compList)
+					// log.Println("CompList:", id, compList)
 					ecs.Write(world, id, compList...)
 
 //TODO - Forcing this to fail: Note: We removed position from sprite with the plan to make an networkPosition be the thing that comes off the network. Then have a system that interps that into the current transform

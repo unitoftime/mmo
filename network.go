@@ -70,7 +70,7 @@ func ClientReceive(world *ecs.World, conn net.Conn, networkChannel chan serdes.W
 
 		switch t := fbMessage.(type) {
 		case serdes.WorldUpdate:
-			log.Println(t)
+			// log.Println(t)
 			networkChannel <- t
 		case serdes.ClientLoginResp:
 			log.Println("serdes.ClientLoginResp", t)
