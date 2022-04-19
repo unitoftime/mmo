@@ -70,8 +70,8 @@ github.com/ugorji/go/codec v1.1.7 h1:2SvQaVZ1ouYrrKKwoSk2pzd4A9evlKJb9oTL+OaLUSs
 github.com/ugorji/go/codec v1.1.7/go.mod h1:Ax+UKWsSmolVDwsd+7N3ZtXu+yMGCf907BLYF3GoBXY=
 github.com/ungerik/go3d v0.0.0-20211026193542-07217314a07d h1:oW3sRcpbOkRfQE8u7KccH/Ek+AeWWhDz3J+VT60fa80=
 github.com/ungerik/go3d v0.0.0-20211026193542-07217314a07d/go.mod h1:ipEjrk2uLK4xX8ivWBPIVOD0fMtKyPI0strluUfIlYQ=
-github.com/unitoftime/gl v0.0.0-20220107174509-daad0eee0d12 h1:M7OQv3VNQVHO9DkTuddhbluKXdTKaLyopoc5JAokY1g=
-github.com/unitoftime/gl v0.0.0-20220107174509-daad0eee0d12/go.mod h1:4JBAaROylyhZ8mnz4B+rZJKHfHW8TdZHdW3rV8/Ln+A=
+github.com/unitoftime/gl v0.0.0-20220202134755-7438903f692c h1:pVdq09hNLDsUR8GsT4K5ZFgYOyw43nb6hlaX4hS2enU=
+github.com/unitoftime/gl v0.0.0-20220202134755-7438903f692c/go.mod h1:4JBAaROylyhZ8mnz4B+rZJKHfHW8TdZHdW3rV8/Ln+A=
 github.com/unitoftime/glfw v0.0.0-20211214004214-579be7093d5c h1:aAqqHLhdwZZritWV2E7ynjMQfMD7i49C/pL9vaUrVow=
 github.com/unitoftime/glfw v0.0.0-20211214004214-579be7093d5c/go.mod h1:2Yk3VoyykBgHhxlEd/EGpxbIsduXvUq6GwoUdJNaVXw=
 github.com/unitoftime/packer v0.0.0-20220105185326-f541e031de11 h1:9s71aRCfw8rycn/b+t7aWGbsmJz7jCylWGr7r4xwoV8=

@@ -26,7 +26,7 @@ require (
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/ojrac/opensimplex-go v1.0.2 // indirect
 	github.com/ungerik/go3d v0.0.0-20211026193542-07217314a07d // indirect
-	github.com/unitoftime/gl v0.0.0-20220107174509-daad0eee0d12 // indirect
+	github.com/unitoftime/gl v0.0.0-20220202134755-7438903f692c // indirect
 	github.com/unitoftime/glfw v0.0.0-20211214004214-579be7093d5c // indirect
 	github.com/unitoftime/packer v0.0.0-20220105185326-f541e031de11 // indirect
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410 // indirect

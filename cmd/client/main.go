@@ -110,7 +110,7 @@ func runGame() {
 
 	load := asset.NewLoad(f)
 	// load := asset.NewLoad(os.DirFS("http://localhost:8081"))
-	spritesheet, err := load.Spritesheet("packed.json")
+	spritesheet, err := load.Spritesheet("packed.json", false)
 	check(err)
 
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
@@ -142,7 +142,7 @@ func runGame() {
 	manSprite, err := spritesheet.Get("man1.png")
 	check(err)
 
-	camera := render.NewCamera(win, 0, 0)
+	camera := render.NewCamera(win.Bounds(), 0, 0)
 	zoomSpeed := 0.1
 	quit := ecs.Signal{}
 	quit.Set(false)
@@ -215,10 +215,10 @@ func runGame() {
 			// 	}
 			// })
 
-			camera.Update()
+			camera.Update(win.Bounds())
 		}},
 		ecs.System{"Draw", func(dt time.Duration) {
-			glitch.Clear(glitch.RGBA{0, 0, 0, 1.0})
+			glitch.Clear(win, glitch.RGBA{0, 0, 0, 1.0})
 
 			// win.SetMatrix(camera.Mat())
 			// tmapRender.Draw(win)

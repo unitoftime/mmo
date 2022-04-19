@@ -86,15 +86,15 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tilemap.Tilemap {
 			}
 
 			if height < waterLevel {
-				tiles[x][y] = tilemap.Tile{WaterTile}
+				tiles[x][y] = tilemap.Tile{WaterTile, 0, ecs.InvalidEntity}
 			} else if height < beachLevel {
-				tiles[x][y] = tilemap.Tile{DirtTile}
+				tiles[x][y] = tilemap.Tile{DirtTile, 0, ecs.InvalidEntity}
 			} else {
-				tiles[x][y] = tilemap.Tile{GrassTile}
+				tiles[x][y] = tilemap.Tile{GrassTile, 0, ecs.InvalidEntity}
 			}
 		}
 	}
-	tmap := tilemap.New(tiles, tileSize)
+	tmap := tilemap.New(tiles, [2]int{tileSize, tileSize}, tilemap.FlatRectMath{})
 
 	return tmap
 }
