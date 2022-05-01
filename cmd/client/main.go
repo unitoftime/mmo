@@ -25,7 +25,7 @@ import (
 	"github.com/unitoftime/flow/asset"
 	"github.com/unitoftime/flow/render"
 	"github.com/unitoftime/flow/physics"
-	"github.com/unitoftime/flow/tilemap"
+	"github.com/unitoftime/flow/tile"
 )
 
 //go:embed packed.json packed.png
@@ -128,7 +128,7 @@ func runGame() {
 	check(err)
 	log.Println(*waterTile)
 
-	tmapRender := render.NewTilemapRender(spritesheet, map[tilemap.TileType]*glitch.Sprite{
+	tmapRender := render.NewTilemapRender(spritesheet, map[tile.TileType]*glitch.Sprite{
 		mmo.GrassTile: grassTile,
 		mmo.DirtTile: dirtTile,
 		mmo.WaterTile: waterTile,

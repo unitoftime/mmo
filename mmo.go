@@ -9,7 +9,7 @@ import (
 	"go.nanomsg.org/mangos/v3"
 
 	"github.com/unitoftime/ecs"
-	"github.com/unitoftime/flow/tilemap"
+	"github.com/unitoftime/flow/tile"
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/pgen"
 	"github.com/unitoftime/mmo/serdes"
@@ -26,7 +26,7 @@ func SpawnPoint() physics.Transform {
 	return spawnPoint
 }
 
-func LoadGame(world *ecs.World) *tilemap.Tilemap {
+func LoadGame(world *ecs.World) *tile.Tilemap {
 	// Create Tilemap
 	tmap := CreateTilemap(seed, mapSize, tileSize)
 
@@ -49,12 +49,12 @@ type ClientOwned struct {
 // func (t *ClientOwned) ComponentSet(val interface{}) { *t = val.(ClientOwned) }
 
 const (
-	GrassTile tilemap.TileType = iota
+	GrassTile tile.TileType = iota
 	DirtTile
 	WaterTile
 )
 
-func CreateTilemap(seed int64, mapSize, tileSize int) *tilemap.Tilemap {
+func CreateTilemap(seed int64, mapSize, tileSize int) *tile.Tilemap {
 	octaves := []pgen.Octave{
 		pgen.Octave{0.01, 0.6},
 		pgen.Octave{0.05, 0.3},
@@ -69,9 +69,9 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tilemap.Tilemap {
 	beachLevel := waterLevel + 0.1
 
 	islandExponent := 2.0
-	tiles := make([][]tilemap.Tile, mapSize, mapSize)
+	tiles := make([][]tile.Tile, mapSize, mapSize)
 	for x := range tiles {
-		tiles[x] = make([]tilemap.Tile, mapSize, mapSize)
+		tiles[x] = make([]tile.Tile, mapSize, mapSize)
 		for y := range tiles[x] {
 
 			height := terrain.Get(x, y)
@@ -86,15 +86,15 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tilemap.Tilemap {
 			}
 
 			if height < waterLevel {
-				tiles[x][y] = tilemap.Tile{WaterTile, 0, ecs.InvalidEntity}
+				tiles[x][y] = tile.Tile{WaterTile, 0, ecs.InvalidEntity}
 			} else if height < beachLevel {
-				tiles[x][y] = tilemap.Tile{DirtTile, 0, ecs.InvalidEntity}
+				tiles[x][y] = tile.Tile{DirtTile, 0, ecs.InvalidEntity}
 			} else {
-				tiles[x][y] = tilemap.Tile{GrassTile, 0, ecs.InvalidEntity}
+				tiles[x][y] = tile.Tile{GrassTile, 0, ecs.InvalidEntity}
 			}
 		}
 	}
-	tmap := tilemap.New(tiles, [2]int{tileSize, tileSize}, tilemap.FlatRectMath{})
+	tmap := tile.New(tiles, [2]int{tileSize, tileSize}, tile.FlatRectMath{})
 
 	return tmap
 }
