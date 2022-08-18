@@ -18,18 +18,6 @@ func (t *Websocket) ComponentSet(val interface{}) { *t = val.(Websocket) }
 
 func ClientSendUpdate(world *ecs.World, conn net.Conn) {
 	ecs.Map2(world, func(id ecs.Id, _ *ClientOwned, input *physics.Input) {
-	// view := ecs.ViewAll(world, &ClientOwned{}, &physics.Input{})
-	// view.Map(func(id ecs.Id, comp ...interface{}) {
-	// 	input := comp[1].(*physics.Input)
-	// ecs.Each(engine, ClientOwned{}, func(id ecs.Id, a interface{}) {
-
-		// input := physics.Input{}
-		// ok := ecs.Read(engine, id, &input)
-		// if !ok {
-		// 	log.Println("ERROR: Client Owned Entity should always have an input!")
-		// 	return
-		// }
-
 		update := serdes.WorldUpdate{
 			WorldData: map[ecs.Id][]ecs.Component{
 				id: []ecs.Component{ecs.C(*input)},
@@ -93,26 +81,6 @@ func ServerSendUpdate(world *ecs.World, sock mangos.Socket) {
 
 	{
 		ecs.Map2(world, func(id ecs.Id, transform *physics.Transform, body *Body) {
-		// view := ecs.ViewAll(world, &physics.Transform{}, &Body{})
-		// view.Map(func(id ecs.Id, comp ...interface{}) {
-			// transform := comp[0].(*physics.Transform)
-			// body := comp[1].(*Body)
-
-			// ecs.Each(engine, physics.Transform{}, func(id ecs.Id, a interface{}) {
-			// transform := a.(physics.Transform)
-
-			// body := Body{}
-			// ok := ecs.Read(engine, id, &body)
-			// if !ok { return }
-
-			// transformUpdate, err := NewTransformUpdate(id, transform)
-			// if err != nil {
-			// 	log.Println(err)
-			// 	return
-			// }
-
-			// transformList = append(transformList, transformUpdate)
-
 			compList := []ecs.Component{
 				ecs.C(*transform),
 				ecs.C(*body),
@@ -123,12 +91,6 @@ func ServerSendUpdate(world *ecs.World, sock mangos.Socket) {
 
 	{
 		ecs.Map(world, func(id ecs.Id, user *User) {
-		// view := ecs.ViewAll(world, &User{})
-		// view.Map(func(id ecs.Id, comp ...interface{}) {
-			// user := comp[0].(*User)
-			// ecs.Each(engine, User{}, func(id ecs.Id, a interface{}) {
-			// user := a.(User)
-
 			log.Println("ServerSendUpdate WorldUpdate:", update)
 
 			update.UserId = user.Id
@@ -196,13 +158,6 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 				ecs.C(Body{}),
 				ecs.C(SpawnPoint()),
 			)
-			// id := engine.NewId()
-			// ecs.Write(engine, id, User{
-			// 	Id: t.UserId,
-			// })
-			// ecs.Write(engine, id, physics.Input{})
-			// ecs.Write(engine, id, Body{})
-			// ecs.Write(engine, id, SpawnPoint())
 			// log.Println("Logging in player:", id)
 
 			loginMap[t.UserId] = id

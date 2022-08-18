@@ -2,8 +2,9 @@
 
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
-gotip run ./server &
+go run ./server &
 sleep 1
-gotip run ./proxy &
+go run ./proxy &
 sleep 1
-cd client && gotip run . -cpuprofile cpu.prof -memprofile mem.prof
+cd client
+go run . -cpuprofile cpu.prof -memprofile mem.prof

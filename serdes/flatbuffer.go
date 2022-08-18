@@ -7,7 +7,6 @@ import (
 	flatmsg "github.com/unitoftime/mmo/flat/msg"
 
 	"github.com/unitoftime/ecs"
-	// "github.com/unitoftime/mmo"
 	"github.com/unitoftime/flow/physics"
 )
 

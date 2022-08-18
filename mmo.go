@@ -21,8 +21,10 @@ var tileSize int = 16
 
 func SpawnPoint() physics.Transform {
 	spawnPoint := physics.Transform{
-		float64(tileSize*mapSize/2),
-		float64(tileSize*mapSize/2)}
+		X: float64(tileSize*mapSize/2),
+		Y: float64(tileSize*mapSize/2),
+		Height: 0,
+	}
 	return spawnPoint
 }
 
