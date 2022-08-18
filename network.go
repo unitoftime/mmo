@@ -10,7 +10,6 @@ import (
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/mmo/serdes"
 )
-
 type Websocket struct {
 	net.Conn
 }

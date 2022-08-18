@@ -40,15 +40,12 @@ type User struct {
 	Name string // TODO - remove and put into a component called "DisplayName"
 	Id uint64
 }
-// func (t *User) ComponentSet(val interface{}) { *t = val.(User) }
 
 type Body struct {
 }
-// func (t *Body) ComponentSet(val interface{}) { *t = val.(Body) }
 
 type ClientOwned struct {
 }
-// func (t *ClientOwned) ComponentSet(val interface{}) { *t = val.(ClientOwned) }
 
 const (
 	GrassTile tile.TileType = iota
