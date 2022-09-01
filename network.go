@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"math/rand"
 
 	"go.nanomsg.org/mangos/v3"
 
@@ -174,7 +175,7 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 				Id: t.UserId,
 			}),
 				ecs.C(physics.Input{}),
-				ecs.C(game.Body{}),
+				ecs.C(game.Body{uint32(rand.Intn(game.NumBodyTypes))}),
 				ecs.C(SpawnPoint()),
 			)
 			// log.Println("Logging in player:", id)

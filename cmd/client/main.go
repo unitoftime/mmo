@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"time"
+	"fmt"
 	"log"
 	"context"
 	"embed"
@@ -132,8 +133,13 @@ func runGame() {
 
 	// Create people
 	// TODO - move to system that converts like bodytype into sprites
-	manSprite, err := spritesheet.Get("man1.png")
-	check(err)
+	manSprites := make([]*glitch.Sprite, game.NumBodyTypes)
+	for i := 0; i < len(manSprites); i++ {
+		manSprites[i], err = spritesheet.Get(fmt.Sprintf("man%d.png", i))
+		check(err)
+	}
+	// manSprite, err := spritesheet.Get("man1.png")
+	// check(err)
 
 	camera := render.NewCamera(win.Bounds(), 0, 0)
 	zoomSpeed := 0.1
@@ -156,7 +162,8 @@ func runGame() {
 				if !ok {
 					ecs.Write(world, id, ecs.C(render.NewSprite(
 						// Position: pixel.ZV, // TODO - just read this from transform
-						manSprite)))
+						// manSprite)))
+						manSprites[int(body.Type)])))
 
 					// TODO - put into a login message
 					ecs.Write(world, id, ecs.C(physics.Input{}))

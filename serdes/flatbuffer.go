@@ -128,8 +128,9 @@ func MarshalWorldUpdateMessage(update WorldUpdate) ([]byte, error) {
 					input.Up, input.Down, input.Left, input.Right)
 				flatmsg.EntityAddInput(builder, inputMsg)
 			case ecs.CompBox[game.Body]:
+				body := t.Get()
 				bodyMsg := flatmsg.CreateBody(builder,
-					1)
+					body.Type)
 				flatmsg.EntityAddBody(builder, bodyMsg)
 			default:
 				return nil, fmt.Errorf("Unknown component %t", comp)
@@ -223,7 +224,9 @@ func UnmarshalMessage(buf []byte) (interface{}, error) {
 
 			body := entity.Body(nil)
 			if body != nil {
-				compList = append(compList, ecs.C(game.Body{}))
+				compList = append(compList, ecs.C(game.Body{
+					Type: body.Val(),
+				}))
 			}
 
 			// log.Println(entity.Id())
