@@ -8,6 +8,7 @@ import (
 
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/physics"
+	"github.com/unitoftime/mmo/game"
 )
 
 type WorldUpdate struct {
@@ -126,12 +127,12 @@ func MarshalWorldUpdateMessage(update WorldUpdate) ([]byte, error) {
 				inputMsg := flatmsg.CreateInput(builder,
 					input.Up, input.Down, input.Left, input.Right)
 				flatmsg.EntityAddInput(builder, inputMsg)
-			// case mmo.Body:
-			// 	bodyMsg := flatmsg.CreateBody(builder,
-			// 		1)
-			// 	flatmsg.EntityAddBody(builder, bodyMsg)
-			// default:
-			// 	return nil, fmt.Errorf("Unknown component %t", comp)
+			case ecs.CompBox[game.Body]:
+				bodyMsg := flatmsg.CreateBody(builder,
+					1)
+				flatmsg.EntityAddBody(builder, bodyMsg)
+			default:
+				return nil, fmt.Errorf("Unknown component %t", comp)
 			}
 		}
 
@@ -218,6 +219,11 @@ func UnmarshalMessage(buf []byte) (interface{}, error) {
 					Left: input.Left(),
 					Right: input.Right(),
 				}))
+			}
+
+			body := entity.Body(nil)
+			if body != nil {
+				compList = append(compList, ecs.C(game.Body{}))
 			}
 
 			// log.Println(entity.Id())

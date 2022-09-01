@@ -41,9 +41,6 @@ type User struct {
 	Id uint64
 }
 
-type Body struct {
-}
-
 type ClientOwned struct {
 }
 
@@ -148,7 +145,6 @@ func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldU
 				for id, compList := range update.WorldData {
 					// log.Println("CompList:", id, compList)
 					ecs.Write(world, id, compList...)
-					ecs.Write(world, id, ecs.C(Body{})) // TODO hack - need to fix serdes
 
 //TODO - Forcing this to fail: Note: We removed position from sprite with the plan to make an networkPosition be the thing that comes off the network. Then have a system that interps that into the current transform
 

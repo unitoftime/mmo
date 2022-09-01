@@ -21,6 +21,7 @@ import (
 	"github.com/unitoftime/glitch/shaders"
 
 	"github.com/unitoftime/mmo"
+	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/mmo/serdes"
 	"github.com/unitoftime/flow/asset"
 	"github.com/unitoftime/flow/render"
@@ -146,7 +147,7 @@ func runGame() {
 		// }},
 		ecs.System{"BodyToSprite", func(dt time.Duration) {
 			// TODO - would like to create the entire entity at once
-			ecs.Map(world, func(id ecs.Id, body *mmo.Body) {
+			ecs.Map(world, func(id ecs.Id, body *game.Body) {
 
 				// TODO - We should really have a login-response-handling function
 				// sprite := render.Sprite{}

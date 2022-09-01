@@ -10,6 +10,7 @@ import (
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/mmo/serdes"
+	"github.com/unitoftime/mmo/game"
 )
 type Websocket struct {
 	net.Conn
@@ -63,7 +64,7 @@ func ClientReceive(world *ecs.World, conn net.Conn, networkChannel chan serdes.W
 			log.Println("serdes.ClientLoginResp", t)
 			// ecs.Write(engine, ecs.Id(t.Id), ClientOwned{})
 			// ecs.Write(engine, ecs.Id(t.Id), Body{})
-			ecs.Write(world, ecs.Id(t.Id), ecs.C(ClientOwned{}), ecs.C(Body{}))
+			ecs.Write(world, ecs.Id(t.Id), ecs.C(ClientOwned{}), ecs.C(game.Body{}))
 		default:
 			panic("Unknown message type")
 		}
@@ -86,7 +87,7 @@ func ServerSendUpdate(world *ecs.World, sock mangos.Socket, deleteList *DeleteLi
 	}
 
 	{
-		ecs.Map2(world, func(id ecs.Id, transform *physics.Transform, body *Body) {
+		ecs.Map2(world, func(id ecs.Id, transform *physics.Transform, body *game.Body) {
 			compList := []ecs.Component{
 				ecs.C(*transform),
 				ecs.C(*body),
@@ -173,7 +174,7 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 				Id: t.UserId,
 			}),
 				ecs.C(physics.Input{}),
-				ecs.C(Body{}),
+				ecs.C(game.Body{}),
 				ecs.C(SpawnPoint()),
 			)
 			// log.Println("Logging in player:", id)
