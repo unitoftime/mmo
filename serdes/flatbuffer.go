@@ -13,6 +13,7 @@ import (
 type WorldUpdate struct {
 	UserId uint64
 	WorldData map[ecs.Id][]ecs.Component
+	Delete []ecs.Id
 }
 
 type ClientLogin struct {
@@ -20,6 +21,14 @@ type ClientLogin struct {
 }
 
 type ClientLoginResp struct {
+	UserId uint64
+	Id ecs.Id
+}
+
+type ClientLogout struct {
+	UserId uint64
+}
+type ClientLogoutResp struct {
 	UserId uint64
 	Id ecs.Id
 }
@@ -59,11 +68,47 @@ func MarshalClientLoginRespMessage(userId uint64, id ecs.Id) []byte {
 	return buf
 }
 
+func MarshalClientLogoutMessage(userId uint64) []byte {
+	builder := flatbuffers.NewBuilder(1024)
+	flatmsg.ClientLogoutStart(builder)
+	flatmsg.ClientLogoutAddUserId(builder, userId)
+	clientLogout := flatmsg.ClientLogoutEnd(builder)
+
+	flatmsg.MessageStart(builder)
+	flatmsg.MessageAddPayloadType(builder, flatmsg.PayloadClientLogout)
+	flatmsg.MessageAddPayload(builder, clientLogout)
+	msg := flatmsg.MessageEnd(builder)
+
+	builder.Finish(msg)
+
+	buf := builder.FinishedBytes()
+	return buf
+}
+
+func MarshalClientLogoutRespMessage(userId uint64, id ecs.Id) []byte {
+	builder := flatbuffers.NewBuilder(1024)
+	flatmsg.ClientLogoutRespStart(builder)
+	flatmsg.ClientLogoutRespAddUserId(builder, userId)
+	flatmsg.ClientLogoutRespAddId(builder, uint32(id))
+	clientLogoutResp := flatmsg.ClientLogoutRespEnd(builder)
+
+	flatmsg.MessageStart(builder)
+	flatmsg.MessageAddPayloadType(builder, flatmsg.PayloadClientLogoutResp)
+	flatmsg.MessageAddPayload(builder, clientLogoutResp)
+	msg := flatmsg.MessageEnd(builder)
+
+	builder.Finish(msg)
+
+	buf := builder.FinishedBytes()
+	return buf
+}
+
 func MarshalWorldUpdateMessage(update WorldUpdate) ([]byte, error) {
 	builder := flatbuffers.NewBuilder(1024)
 
 	worldData := update.WorldData
 	userId := update.UserId
+	toDelete := update.Delete
 
 	entList := make([]flatbuffers.UOffsetT, 0)
 	for id, compList := range worldData {
@@ -99,9 +144,16 @@ func MarshalWorldUpdateMessage(update WorldUpdate) ([]byte, error) {
 	}
 	entities := builder.EndVector(len(entList))
 
+	flatmsg.WorldUpdateStartDeleteVector(builder, len(toDelete))
+	for i := range toDelete {
+		builder.PrependUint32(uint32(toDelete[i]))
+	}
+	delete := builder.EndVector(len(toDelete))
+
 	flatmsg.WorldUpdateStart(builder)
 	flatmsg.WorldUpdateAddUserId(builder, userId)
 	flatmsg.WorldUpdateAddEntities(builder, entities)
+	flatmsg.WorldUpdateAddDelete(builder, delete)
 	worldUpdate := flatmsg.WorldUpdateEnd(builder)
 
 	flatmsg.MessageStart(builder)
@@ -172,12 +224,27 @@ func UnmarshalMessage(buf []byte) (interface{}, error) {
 			worldData[ecs.Id(entity.Id())] = compList
 		}
 
+		delete := make([]ecs.Id, 0)
+		deleteLength := worldUpdate.DeleteLength()
+		for i := 0; i < deleteLength; i++ {
+			id := worldUpdate.Delete(i)
+			// TODO - there doesn't appear to be any checks to show that it succeeded. Idk what happens if we go out of bounds, so I'll just check if it's zeroed here
+			if ecs.Id(id) == ecs.InvalidEntity {
+				return nil, fmt.Errorf("Unable to access deleteList at index %d", i)
+			}
+
+			delete = append(delete, ecs.Id(id))
+		}
+
 		msg := WorldUpdate{
 			UserId: worldUpdate.UserId(),
 			WorldData: worldData,
+			Delete: delete,
 		}
-		fmt.Println("Unmarshal", msg)
+		// fmt.Println("Unmarshal", msg)
 		return msg, nil
+
+	// --- Login ---
 	case flatmsg.PayloadClientLogin:
 		clientLogin := new(flatmsg.ClientLogin)
 		clientLogin.Init(payloadUnion.Bytes, payloadUnion.Pos)
@@ -191,6 +258,22 @@ func UnmarshalMessage(buf []byte) (interface{}, error) {
 		return ClientLoginResp{
 			UserId: clientLoginResp.UserId(), // TODO - can this be null?
 			Id: ecs.Id(clientLoginResp.Id()), // TODO - can this be null?
+		}, nil
+
+	// --- Logout ---
+	case flatmsg.PayloadClientLogout:
+		clientLogout := new(flatmsg.ClientLogout)
+		clientLogout.Init(payloadUnion.Bytes, payloadUnion.Pos)
+		return ClientLogout{
+			UserId: clientLogout.UserId(), // TODO - can this be null?
+		}, nil
+
+	case flatmsg.PayloadClientLogoutResp:
+		clientLogoutResp := new(flatmsg.ClientLogoutResp)
+		clientLogoutResp.Init(payloadUnion.Bytes, payloadUnion.Pos)
+		return ClientLogoutResp{
+			UserId: clientLogoutResp.UserId(), // TODO - can this be null?
+			Id: ecs.Id(clientLogoutResp.Id()), // TODO - can this be null?
 		}, nil
 	default:
 		return nil, fmt.Errorf("Unknown Flatbuffer message payload type %s", payloadType)

@@ -3,6 +3,7 @@ package mmo
 import (
 	"log"
 	"net"
+	"sync"
 
 	"go.nanomsg.org/mangos/v3"
 
@@ -13,7 +14,6 @@ import (
 type Websocket struct {
 	net.Conn
 }
-func (t *Websocket) ComponentSet(val interface{}) { *t = val.(Websocket) }
 
 func ClientSendUpdate(world *ecs.World, conn net.Conn) {
 	ecs.Map2(world, func(id ecs.Id, _ *ClientOwned, input *physics.Input) {
@@ -70,12 +70,19 @@ func ClientReceive(world *ecs.World, conn net.Conn, networkChannel chan serdes.W
 	}
 }
 
-func ServerSendUpdate(world *ecs.World, sock mangos.Socket) {
-	// transformList := make([]TransformUpdate, 0)
+func ServerSendUpdate(world *ecs.World, sock mangos.Socket, deleteList *DeleteList) {
+	deleteList.mu.Lock()
+	// TODO - Optimization opportunity: You could have a front-buffer and a back-buffer then toggle which one is the write buffer and which is the read buffer. Then you don't have to copy.
+	dListCopy := make([]ecs.Id, len(deleteList.list))
+	copy(dListCopy, deleteList.list)
+
+	deleteList.list = deleteList.list[:0]
+	deleteList.mu.Unlock()
 
 	update := serdes.WorldUpdate{
 		UserId: 0,
 		WorldData: make(map[ecs.Id][]ecs.Component),
+		Delete: dListCopy,
 	}
 
 	{
@@ -90,9 +97,9 @@ func ServerSendUpdate(world *ecs.World, sock mangos.Socket) {
 
 	{
 		ecs.Map(world, func(id ecs.Id, user *User) {
-			log.Println("ServerSendUpdate WorldUpdate:", update)
-
 			update.UserId = user.Id
+			// log.Println("ServerSendUpdate WorldUpdate:", update)
+
 			serializedUpdate, err := serdes.MarshalWorldUpdateMessage(update)
 			if err != nil {
 				log.Println("Error Marshalling", err)
@@ -108,7 +115,19 @@ func ServerSendUpdate(world *ecs.World, sock mangos.Socket) {
 	}
 }
 
-func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel chan serdes.WorldUpdate) {
+type DeleteList struct {
+	mu sync.RWMutex
+	list []ecs.Id
+}
+func NewDeleteList() *DeleteList {
+	return &DeleteList{
+		list: make([]ecs.Id, 0),
+	}
+}
+
+
+
+func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) {
 	log.Println("Server: ServeProxyConnection")
 	loginMap := make(map[uint64]ecs.Id)
 
@@ -160,13 +179,31 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 			// log.Println("Logging in player:", id)
 
 			loginMap[t.UserId] = id
+
 			loginResp := serdes.MarshalClientLoginRespMessage(t.UserId, id)
 			err := sock.Send(loginResp)
 			if err != nil {
 				log.Println("Failed to send login response")
+			}
+		case serdes.ClientLogout:
+			log.Println("Server: serdes.ClientLogout")
+			id := loginMap[t.UserId]
+			ecs.Delete(world, id)
+
+			delete(loginMap, t.UserId)
+
+			deleteList.mu.Lock()
+			deleteList.list = append(deleteList.list, id)
+			deleteList.mu.Unlock()
+
+			logoutResp := serdes.MarshalClientLogoutRespMessage(t.UserId, id)
+			err := sock.Send(logoutResp)
+			if err != nil {
+				log.Println("Failed to send logout response")
 			}
 		default:
 			panic("Unknown message type")
 		}
 	}
 }
+

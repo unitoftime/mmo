@@ -98,6 +98,7 @@ func (s websocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	go ServeNetConn(conn, s.serverSocket, s.room)
 }
 
+var userIdCounter uint64
 func ServeNetConn(conn net.Conn, serverSocket mangos.Socket, room *Room) {
 	defer func() {
 		err := conn.Close()
@@ -110,12 +111,13 @@ func ServeNetConn(conn net.Conn, serverSocket mangos.Socket, room *Room) {
 	timeout := make(chan uint8, 1)
 	const StopTimeout uint8 = 0
 	const ContTimeout uint8 = 1
-	const MaxMsgSize int = 4 * 1024
+	const MaxMsgSize int = 4 * 1024 // TODO - use the maximum MTU size
 
 	// Login player
-	// TODO - put into a function
-	userId := uint64(1111)
 	room.mu.Lock()
+	// TODO - Eventually This id should come from the login request which probably has a JWT which encodes the data. You probably don't need that in a lock
+	userId := userIdCounter
+	userIdCounter++
 	_, ok := room.Map[userId]
 	if ok {
 		log.Println("Duplicate Login Detected! Exiting.")
@@ -124,12 +126,15 @@ func ServeNetConn(conn net.Conn, serverSocket mangos.Socket, room *Room) {
 	}
 	room.Map[userId] = conn
 	room.mu.Unlock()
+
+	// Cleanup room once they leave
 	defer func() {
 		room.mu.Lock()
 		delete(room.Map, userId)
 		room.mu.Unlock()
 	}()
 
+	// Send login message to server
 	log.Println("Sending Login Message for", userId)
 	serLogin := serdes.MarshalClientLoginMessage(userId)
 
@@ -138,6 +143,17 @@ func ServeNetConn(conn net.Conn, serverSocket mangos.Socket, room *Room) {
 		log.Println("Failed to send login message")
 		return
 	}
+
+	// Send logout message to server
+	defer func() {
+		// TODO - maybe just kick of a goroutine that just continually tries to do this until it succeeds. Or maybe have one worker that reads from a queue or map or something like that
+		serLogout := serdes.MarshalClientLogoutMessage(userId)
+
+		err := serverSocket.Send(serLogout)
+		if err != nil {
+			panic("Failed to send logout message") // TODO - this needs to not panic
+		}
+	}()
 
 	// Read data from client and sends to game server
 	// TODO - TCP doesn't provide framing, so message framing needs to be added
@@ -158,7 +174,7 @@ func ServeNetConn(conn net.Conn, serverSocket mangos.Socket, room *Room) {
 			// Tick the timeout watcher so we don't timeout!
 			timeout <- ContTimeout
 
-			log.Println("Unmarshalling")
+			// log.Println("Unmarshalling")
 			// TODO - replace with mutateInPlace code?
 			fbMessage, err := serdes.UnmarshalMessage(msg)
 			if err != nil {
@@ -227,7 +243,7 @@ func (r *Room) HandleGameUpdates(sock mangos.Socket) {
 		if err != nil {
 			log.Println("Failed to unmarshal:", err)
 		}
-		log.Println("HandleGameUpdate:", fbMessage)
+		// log.Println("HandleGameUpdate:", fbMessage)
 
 		switch t := fbMessage.(type) {
 		case serdes.WorldUpdate:
@@ -251,6 +267,7 @@ func (r *Room) HandleGameUpdates(sock mangos.Socket) {
 				}
 			} else {
 				log.Println("User Disconnected", t.UserId)
+				// TODO - Send back to server "hey this person disconnected!"
 			}
 		case serdes.ClientLoginResp:
 			log.Println("serdes.ClientLoginResp")
@@ -274,7 +291,12 @@ func (r *Room) HandleGameUpdates(sock mangos.Socket) {
 				}
 			} else {
 				log.Println("User Disconnected", t.UserId)
+				// TODO - Send back to server "hey this person disconnected!"
 			}
+		case serdes.ClientLogoutResp:
+			log.Println("serdes.ClientLogoutResp")
+			// TODO - should I double check that they've been removed from the map?
+			// TODO - I should send a "logged out successful" message
 		default:
 			panic("Unknown message type")
 		}

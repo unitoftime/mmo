@@ -7,24 +7,30 @@ import "strconv"
 type Payload byte
 
 const (
-	PayloadNONE            Payload = 0
-	PayloadWorldUpdate     Payload = 1
-	PayloadClientLogin     Payload = 2
-	PayloadClientLoginResp Payload = 3
+	PayloadNONE             Payload = 0
+	PayloadWorldUpdate      Payload = 1
+	PayloadClientLogin      Payload = 2
+	PayloadClientLoginResp  Payload = 3
+	PayloadClientLogout     Payload = 4
+	PayloadClientLogoutResp Payload = 5
 )
 
 var EnumNamesPayload = map[Payload]string{
-	PayloadNONE:            "NONE",
-	PayloadWorldUpdate:     "WorldUpdate",
-	PayloadClientLogin:     "ClientLogin",
-	PayloadClientLoginResp: "ClientLoginResp",
+	PayloadNONE:             "NONE",
+	PayloadWorldUpdate:      "WorldUpdate",
+	PayloadClientLogin:      "ClientLogin",
+	PayloadClientLoginResp:  "ClientLoginResp",
+	PayloadClientLogout:     "ClientLogout",
+	PayloadClientLogoutResp: "ClientLogoutResp",
 }
 
 var EnumValuesPayload = map[string]Payload{
-	"NONE":            PayloadNONE,
-	"WorldUpdate":     PayloadWorldUpdate,
-	"ClientLogin":     PayloadClientLogin,
-	"ClientLoginResp": PayloadClientLoginResp,
+	"NONE":             PayloadNONE,
+	"WorldUpdate":      PayloadWorldUpdate,
+	"ClientLogin":      PayloadClientLogin,
+	"ClientLoginResp":  PayloadClientLoginResp,
+	"ClientLogout":     PayloadClientLogout,
+	"ClientLogoutResp": PayloadClientLogoutResp,
 }
 
 func (v Payload) String() string {

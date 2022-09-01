@@ -83,18 +83,10 @@ func runGame() {
 
 	conn := websocket.NetConn(ctx, c, websocket.MessageBinary)
 
-	// Setup Pixel
-	// cfg := pixelgl.WindowConfig{
-	// 	Title: "MMO",
-	// 	Bounds: pixel.R(0, 0, 1024, 768),
-	// 	VSync: true,
-	// 	Resizable: true,
-	// }
 	win, err := glitch.NewWindow(1920, 1080, "MMO", glitch.WindowConfig{
 		Vsync: true,
 	})
 
-	// win, err := pixelgl.NewWindow(cfg)
 	check(err)
 	// win.SetSmooth(false)
 
@@ -155,8 +147,6 @@ func runGame() {
 		ecs.System{"BodyToSprite", func(dt time.Duration) {
 			// TODO - would like to create the entire entity at once
 			ecs.Map(world, func(id ecs.Id, body *mmo.Body) {
-			// view := ecs.ViewAll(world, &mmo.Body{})
-			// view.Map(func(id ecs.Id, comp ...interface{}) {
 
 				// TODO - We should really have a login-response-handling function
 				// sprite := render.Sprite{}
@@ -199,21 +189,11 @@ func runGame() {
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
 			ecs.Map2(world, func(id ecs.Id, _ *mmo.ClientOwned, transform *physics.Transform) {
-			// view := ecs.ViewAll(world, &mmo.ClientOwned{}, &physics.Transform{})
-			// view.Map(func(id ecs.Id, comp ...interface{}) {
-			// 	transform := comp[1].(*physics.Transform)
 				log.Println("Update Camera", transform)
 				// sprite := comp[1].(*render.Sprite)
 				// camera.Position = sprite.Position
 				camera.Position = glitch.Vec2{float32(transform.X), float32(transform.Y)}
 			})
-			// 	// ecs.Each(engine, mmo.ClientOwned{}, func(id ecs.Id, a interface{}) {
-			// 	sprite := render.Sprite{}
-			// 	ok := ecs.Read(engine, id, &sprite)
-			// 	if ok {
-			// 		camera.Position = sprite.Position
-			// 	}
-			// })
 
 			camera.Update(win.Bounds())
 		}},

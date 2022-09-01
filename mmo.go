@@ -119,7 +119,7 @@ func CreateClientSystems(world *ecs.World, conn net.Conn) []ecs.System {
 	return clientSystems
 }
 
-func CreateServerSystems(world *ecs.World, sock mangos.Socket, networkChannel chan serdes.WorldUpdate) []ecs.System {
+func CreateServerSystems(world *ecs.World, sock mangos.Socket, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) []ecs.System {
 	serverSystems := []ecs.System{
 		CreatePollNetworkSystem(world, networkChannel),
 	}
@@ -129,7 +129,7 @@ func CreateServerSystems(world *ecs.World, sock mangos.Socket, networkChannel ch
 
 	serverSystems = append(serverSystems, []ecs.System{
 		ecs.System{"ServerSendUpdate", func(dt time.Duration) {
-			ServerSendUpdate(world, sock)
+			ServerSendUpdate(world, sock, deleteList)
 		}},
 	}...)
 
@@ -148,6 +148,7 @@ func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldU
 				for id, compList := range update.WorldData {
 					// log.Println("CompList:", id, compList)
 					ecs.Write(world, id, compList...)
+					ecs.Write(world, id, ecs.C(Body{})) // TODO hack - need to fix serdes
 
 //TODO - Forcing this to fail: Note: We removed position from sprite with the plan to make an networkPosition be the thing that comes off the network. Then have a system that interps that into the current transform
 
@@ -158,6 +159,14 @@ func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldU
 					// 	ecs.Write(engine, id, compList[i])
 					// }
 				}
+
+				// Delete all the entities in the deleteList
+				if update.Delete != nil {
+					for _, id := range update.Delete {
+						ecs.Delete(world, id)
+					}
+				}
+
 			default:
 				break MainLoop
 			}

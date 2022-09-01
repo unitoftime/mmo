@@ -33,16 +33,21 @@ func main() {
 	engine := ecs.NewWorld()
 	_ = mmo.LoadGame(engine)
 
+	// This is the list of entities to get deleted
+	// TODO - make this thread safe
+	deleteList := mmo.NewDeleteList()
+
 	// TODO - make configurable
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
-	serverSystems := mmo.CreateServerSystems(engine, sock, networkChannel)
+
+	serverSystems := mmo.CreateServerSystems(engine, sock, networkChannel, deleteList)
 
 	quit := ecs.Signal{}
 	quit.Set(false)
 
 	go ecs.RunGameFixed(serverSystems, &quit)
 
-	go mmo.ServeProxyConnection(sock, engine, networkChannel)
+	go mmo.ServeProxyConnection(sock, engine, networkChannel, deleteList)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt)

@@ -65,8 +65,34 @@ func (rcv *WorldUpdate) EntitiesLength() int {
 	return 0
 }
 
+func (rcv *WorldUpdate) Delete(j int) uint32 {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
+	if o != 0 {
+		a := rcv._tab.Vector(o)
+		return rcv._tab.GetUint32(a + flatbuffers.UOffsetT(j*4))
+	}
+	return 0
+}
+
+func (rcv *WorldUpdate) DeleteLength() int {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
+	if o != 0 {
+		return rcv._tab.VectorLen(o)
+	}
+	return 0
+}
+
+func (rcv *WorldUpdate) MutateDelete(j int, n uint32) bool {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
+	if o != 0 {
+		a := rcv._tab.Vector(o)
+		return rcv._tab.MutateUint32(a+flatbuffers.UOffsetT(j*4), n)
+	}
+	return false
+}
+
 func WorldUpdateStart(builder *flatbuffers.Builder) {
-	builder.StartObject(2)
+	builder.StartObject(3)
 }
 func WorldUpdateAddUserId(builder *flatbuffers.Builder, userId uint64) {
 	builder.PrependUint64Slot(0, userId, 0)
@@ -75,6 +101,12 @@ func WorldUpdateAddEntities(builder *flatbuffers.Builder, entities flatbuffers.U
 	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(entities), 0)
 }
 func WorldUpdateStartEntitiesVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
+	return builder.StartVector(4, numElems, 4)
+}
+func WorldUpdateAddDelete(builder *flatbuffers.Builder, delete flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(2, flatbuffers.UOffsetT(delete), 0)
+}
+func WorldUpdateStartDeleteVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
 	return builder.StartVector(4, numElems, 4)
 }
 func WorldUpdateEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {

@@ -6,7 +6,7 @@ namespace msg;
 
 // enum Color : byte { Red = 1, Green, Blue }
 
-union Payload { WorldUpdate, ClientLogin, ClientLoginResp }
+union Payload { WorldUpdate, ClientLogin, ClientLoginResp, ClientLogout, ClientLogoutResp }
 
 table Message {
   payload:Payload;
@@ -15,6 +15,7 @@ table Message {
 table WorldUpdate {
   user_id:ulong;
   entities:[Entity];
+  delete:[uint32];
 }
 
 table ClientLogin {
@@ -22,6 +23,15 @@ table ClientLogin {
 }
 
 table ClientLoginResp {
+  user_id:ulong;
+  id:uint32;
+}
+
+table ClientLogout {
+  user_id:ulong;
+}
+
+table ClientLogoutResp {
   user_id:ulong;
   id:uint32;
 }
