@@ -1,6 +1,6 @@
 module github.com/unitoftime/mmo
 
-go 1.18
+go 1.19
 
 require (
 	github.com/google/flatbuffers v2.0.6+incompatible
