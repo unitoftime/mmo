@@ -134,22 +134,33 @@ func ServeNetConn(conn net.Conn, serverSocket mangos.Socket, room *Room) {
 		room.mu.Unlock()
 	}()
 
+	encoder := serdes.New()
+
 	// Send login message to server
 	log.Println("Sending Login Message for", userId)
-	serLogin := serdes.MarshalClientLoginMessage(userId)
-
-	err := serverSocket.Send(serLogin)
+	// serLogin := serdes.MarshalClientLoginMessage(userId)
+	serLogin, err := encoder.Marshal(serdes.ClientLogin{userId})
 	if err != nil {
-		log.Println("Failed to send login message")
+		log.Println("Failed to marshal message", err)
+		return
+	}
+
+	err = serverSocket.Send(serLogin)
+	if err != nil {
+		log.Println("Failed to send login message", err)
 		return
 	}
 
 	// Send logout message to server
 	defer func() {
 		// TODO - maybe just kick of a goroutine that just continually tries to do this until it succeeds. Or maybe have one worker that reads from a queue or map or something like that
-		serLogout := serdes.MarshalClientLogoutMessage(userId)
+		// serLogout := serdes.MarshalClientLogoutMessage(userId)
+		serLogout, err := encoder.Marshal(serdes.ClientLogout{userId})
+		if err != nil {
+			log.Println("Failed to marshal message", err)
+		}
 
-		err := serverSocket.Send(serLogout)
+		err = serverSocket.Send(serLogout)
 		if err != nil {
 			panic("Failed to send logout message") // TODO - this needs to not panic
 		}
@@ -176,7 +187,9 @@ func ServeNetConn(conn net.Conn, serverSocket mangos.Socket, room *Room) {
 
 			// log.Println("Unmarshalling")
 			// TODO - replace with mutateInPlace code?
-			fbMessage, err := serdes.UnmarshalMessage(msg)
+			// fbMessage, err := serdes.UnmarshalMessage(msg)
+			// Note: Slice off msg buffer based on how many bytes we actually read
+			fbMessage, err := encoder.Unmarshal(msg[:n])
 			if err != nil {
 				log.Println("Failed to unmarshal:", err)
 			}
@@ -187,7 +200,7 @@ func ServeNetConn(conn net.Conn, serverSocket mangos.Socket, room *Room) {
 				log.Println("Client->Proxy: World Update received")
 				// TODO - replace with mutateInPlace code?
 				t.UserId = userId
-				serializedUpdate, err := serdes.MarshalWorldUpdateMessage(t)
+				serializedUpdate, err := encoder.Marshal(t)
 				if err != nil {
 					log.Println("Error Marshalling", err)
 					continue
@@ -232,6 +245,8 @@ func NewRoom() *Room {
 }
 
 func (r *Room) HandleGameUpdates(sock mangos.Socket) {
+	encoder := serdes.New()
+
 	// Read data from game server and send to client
 	for {
 		msg, err := sock.Recv()
@@ -239,7 +254,8 @@ func (r *Room) HandleGameUpdates(sock mangos.Socket) {
 			log.Println("Read Error:", err)
 		}
 
-		fbMessage, err := serdes.UnmarshalMessage(msg)
+		// fbMessage, err := serdes.UnmarshalMessage(msg)
+		fbMessage, err := encoder.Unmarshal(msg)
 		if err != nil {
 			log.Println("Failed to unmarshal:", err)
 		}
@@ -253,7 +269,8 @@ func (r *Room) HandleGameUpdates(sock mangos.Socket) {
 			if ok {
 				// TODO - replace with mutateInPlace code?
 				t.UserId = 0
-				serializedUpdate, err := serdes.MarshalWorldUpdateMessage(t)
+				// serializedUpdate, err := serdes.MarshalWorldUpdateMessage(t)
+				serializedUpdate, err := encoder.Marshal(t)
 				if err != nil {
 					log.Println("Error Marshalling", err)
 					continue
@@ -277,7 +294,8 @@ func (r *Room) HandleGameUpdates(sock mangos.Socket) {
 			if ok {
 				// TODO - replace with mutateInPlace code?
 				t.UserId = 0
-				serializedMsg := serdes.MarshalClientLoginRespMessage(t.UserId, ecs.Id(t.Id))
+				// serializedMsg, err := serdes.MarshalClientLoginRespMessage(t.UserId, ecs.Id(t.Id))
+				serializedMsg, err := encoder.Marshal(serdes.ClientLoginResp{t.UserId, ecs.Id(t.Id)})
 				if err != nil {
 					log.Println("Error Marshalling", err)
 					continue

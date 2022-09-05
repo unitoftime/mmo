@@ -17,7 +17,7 @@ type Websocket struct {
 	net.Conn
 }
 
-func ClientSendUpdate(world *ecs.World, conn net.Conn) {
+func ClientSendUpdate(world *ecs.World, conn net.Conn, encoder *serdes.Serdes) {
 	ecs.Map2(world, func(id ecs.Id, _ *ClientOwned, input *physics.Input) {
 		update := serdes.WorldUpdate{
 			WorldData: map[ecs.Id][]ecs.Component{
@@ -25,7 +25,8 @@ func ClientSendUpdate(world *ecs.World, conn net.Conn) {
 			},
 		}
 		log.Println("ClientSendUpdate:", update)
-		serializedInput, err := serdes.MarshalWorldUpdateMessage(update)
+		// serializedInput, err := serdes.MarshalWorldUpdateMessage(update)
+		serializedInput, err := encoder.Marshal(update)
 		if err != nil {
 			log.Println("Flatbuffers, Failed to serialize", err)
 		}
@@ -41,6 +42,8 @@ func ClientSendUpdate(world *ecs.World, conn net.Conn) {
 func ClientReceive(world *ecs.World, conn net.Conn, networkChannel chan serdes.WorldUpdate) {
 	const MaxMsgSize int = 4 * 1024
 
+	encoder := serdes.New()
+
 	msg := make([]byte, MaxMsgSize)
 	for {
 		n, err := conn.Read(msg)
@@ -51,7 +54,10 @@ func ClientReceive(world *ecs.World, conn net.Conn, networkChannel chan serdes.W
 		}
 		if n <= 0 { continue }
 
-		fbMessage, err := serdes.UnmarshalMessage(msg)
+		log.Println("Read bytes", n)
+
+		// fbMessage, err := serdes.UnmarshalMessage(msg)
+		fbMessage, err := encoder.Unmarshal(msg[:n]) // Note: slice off based on how many bytes we read
 		if err != nil {
 			log.Println("Failed to unmarshal:", err)
 			continue
@@ -72,7 +78,7 @@ func ClientReceive(world *ecs.World, conn net.Conn, networkChannel chan serdes.W
 	}
 }
 
-func ServerSendUpdate(world *ecs.World, sock mangos.Socket, deleteList *DeleteList) {
+func ServerSendUpdate(world *ecs.World, sock mangos.Socket, encoder *serdes.Serdes, deleteList *DeleteList) {
 	deleteList.mu.Lock()
 	// TODO - Optimization opportunity: You could have a front-buffer and a back-buffer then toggle which one is the write buffer and which is the read buffer. Then you don't have to copy.
 	dListCopy := make([]ecs.Id, len(deleteList.list))
@@ -102,7 +108,8 @@ func ServerSendUpdate(world *ecs.World, sock mangos.Socket, deleteList *DeleteLi
 			update.UserId = user.Id
 			// log.Println("ServerSendUpdate WorldUpdate:", update)
 
-			serializedUpdate, err := serdes.MarshalWorldUpdateMessage(update)
+			// serializedUpdate, err := serdes.MarshalWorldUpdateMessage(update)
+			serializedUpdate, err := encoder.Marshal(update)
 			if err != nil {
 				log.Println("Error Marshalling", err)
 				return
@@ -133,6 +140,8 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 	log.Println("Server: ServeProxyConnection")
 	loginMap := make(map[uint64]ecs.Id)
 
+	encoder := serdes.New()
+
 	// Read data
 	for {
 		msg, err := sock.Recv()
@@ -140,7 +149,8 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 			log.Println("Read Error:", err)
 		}
 
-		fbMessage, err := serdes.UnmarshalMessage(msg)
+		// TODO - Do mangos sockets automatically slice the msg buffer? I guess they do?
+		fbMessage, err := encoder.Unmarshal(msg)
 		if err != nil {
 			log.Println("Failed to unmarshal:", err)
 			continue
@@ -182,8 +192,12 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 
 			loginMap[t.UserId] = id
 
-			loginResp := serdes.MarshalClientLoginRespMessage(t.UserId, id)
-			err := sock.Send(loginResp)
+			// loginResp := serdes.MarshalClientLoginRespMessage(t.UserId, id)
+			loginResp, err := encoder.Marshal(serdes.ClientLoginResp{t.UserId, id})
+			if err != nil {
+				log.Println("Failed to send Marshal")
+			}
+			err = sock.Send(loginResp)
 			if err != nil {
 				log.Println("Failed to send login response")
 			}
@@ -198,8 +212,13 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 			deleteList.list = append(deleteList.list, id)
 			deleteList.mu.Unlock()
 
-			logoutResp := serdes.MarshalClientLogoutRespMessage(t.UserId, id)
-			err := sock.Send(logoutResp)
+			// logoutResp := serdes.MarshalClientLogoutRespMessage(t.UserId, id)
+			logoutResp, err := encoder.Marshal(serdes.ClientLogoutResp{t.UserId, id})
+			if err != nil {
+				log.Println("Failed to send Marshal")
+			}
+
+			err = sock.Send(logoutResp)
 			if err != nil {
 				log.Println("Failed to send logout response")
 			}

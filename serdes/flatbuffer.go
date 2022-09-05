@@ -11,33 +11,33 @@ import (
 	"github.com/unitoftime/mmo/game"
 )
 
-type WorldUpdate struct {
-	UserId uint64
-	WorldData map[ecs.Id][]ecs.Component
-	Delete []ecs.Id
-}
+// type WorldUpdate struct {
+// 	UserId uint64
+// 	WorldData map[ecs.Id][]ecs.Component
+// 	Delete []ecs.Id
+// }
 
-type ClientLogin struct {
-	UserId uint64
-}
+// type ClientLogin struct {
+// 	UserId uint64
+// }
 
-type ClientLoginResp struct {
-	UserId uint64
-	Id ecs.Id
-}
+// type ClientLoginResp struct {
+// 	UserId uint64
+// 	Id ecs.Id
+// }
 
-type ClientLogout struct {
-	UserId uint64
-}
-type ClientLogoutResp struct {
-	UserId uint64
-	Id ecs.Id
-}
+// type ClientLogout struct {
+// 	UserId uint64
+// }
+// type ClientLogoutResp struct {
+// 	UserId uint64
+// 	Id ecs.Id
+// }
 
-func MarshalClientLoginMessage(userId uint64) []byte {
+func marshalClientLoginMessage(v ClientLogin) []byte {
 	builder := flatbuffers.NewBuilder(1024)
 	flatmsg.ClientLoginStart(builder)
-	flatmsg.ClientLoginAddUserId(builder, userId)
+	flatmsg.ClientLoginAddUserId(builder, v.UserId)
 	clientLogin := flatmsg.ClientLoginEnd(builder)
 
 	flatmsg.MessageStart(builder)
@@ -51,11 +51,11 @@ func MarshalClientLoginMessage(userId uint64) []byte {
 	return buf
 }
 
-func MarshalClientLoginRespMessage(userId uint64, id ecs.Id) []byte {
+func marshalClientLoginRespMessage(v ClientLoginResp) []byte {
 	builder := flatbuffers.NewBuilder(1024)
 	flatmsg.ClientLoginRespStart(builder)
-	flatmsg.ClientLoginRespAddUserId(builder, userId)
-	flatmsg.ClientLoginRespAddId(builder, uint32(id))
+	flatmsg.ClientLoginRespAddUserId(builder, v.UserId)
+	flatmsg.ClientLoginRespAddId(builder, uint32(v.Id))
 	clientLoginResp := flatmsg.ClientLoginRespEnd(builder)
 
 	flatmsg.MessageStart(builder)
@@ -69,10 +69,10 @@ func MarshalClientLoginRespMessage(userId uint64, id ecs.Id) []byte {
 	return buf
 }
 
-func MarshalClientLogoutMessage(userId uint64) []byte {
+func marshalClientLogoutMessage(v ClientLogout) []byte {
 	builder := flatbuffers.NewBuilder(1024)
 	flatmsg.ClientLogoutStart(builder)
-	flatmsg.ClientLogoutAddUserId(builder, userId)
+	flatmsg.ClientLogoutAddUserId(builder, v.UserId)
 	clientLogout := flatmsg.ClientLogoutEnd(builder)
 
 	flatmsg.MessageStart(builder)
@@ -86,11 +86,11 @@ func MarshalClientLogoutMessage(userId uint64) []byte {
 	return buf
 }
 
-func MarshalClientLogoutRespMessage(userId uint64, id ecs.Id) []byte {
+func marshalClientLogoutRespMessage(v ClientLogoutResp) []byte {
 	builder := flatbuffers.NewBuilder(1024)
 	flatmsg.ClientLogoutRespStart(builder)
-	flatmsg.ClientLogoutRespAddUserId(builder, userId)
-	flatmsg.ClientLogoutRespAddId(builder, uint32(id))
+	flatmsg.ClientLogoutRespAddUserId(builder, v.UserId)
+	flatmsg.ClientLogoutRespAddId(builder, uint32(v.Id))
 	clientLogoutResp := flatmsg.ClientLogoutRespEnd(builder)
 
 	flatmsg.MessageStart(builder)
@@ -104,7 +104,7 @@ func MarshalClientLogoutRespMessage(userId uint64, id ecs.Id) []byte {
 	return buf
 }
 
-func MarshalWorldUpdateMessage(update WorldUpdate) ([]byte, error) {
+func marshalWorldUpdateMessage(update WorldUpdate) ([]byte, error) {
 	builder := flatbuffers.NewBuilder(1024)
 
 	worldData := update.WorldData
@@ -169,7 +169,7 @@ func MarshalWorldUpdateMessage(update WorldUpdate) ([]byte, error) {
 }
 
 ///////////////////////////////////////////////////////////////////////
-func UnmarshalMessage(buf []byte) (interface{}, error) {
+func unmarshalMessage(buf []byte) (any, error) {
 	msg := flatmsg.GetRootAsMessage(buf, 0)
 	if msg == nil {
 		return nil, fmt.Errorf("Invalid message data")

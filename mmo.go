@@ -105,9 +105,10 @@ func CreatePhysicsSystems(world *ecs.World) []ecs.System {
 }
 
 func CreateClientSystems(world *ecs.World, conn net.Conn) []ecs.System {
+	encoder := serdes.New()
 	clientSystems := []ecs.System{
 		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
-			ClientSendUpdate(world, conn)
+			ClientSendUpdate(world, conn, encoder)
 		}},
 	}
 
@@ -117,6 +118,8 @@ func CreateClientSystems(world *ecs.World, conn net.Conn) []ecs.System {
 }
 
 func CreateServerSystems(world *ecs.World, sock mangos.Socket, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) []ecs.System {
+	encoder := serdes.New()
+
 	serverSystems := []ecs.System{
 		CreatePollNetworkSystem(world, networkChannel),
 	}
@@ -126,7 +129,7 @@ func CreateServerSystems(world *ecs.World, sock mangos.Socket, networkChannel ch
 
 	serverSystems = append(serverSystems, []ecs.System{
 		ecs.System{"ServerSendUpdate", func(dt time.Duration) {
-			ServerSendUpdate(world, sock, deleteList)
+			ServerSendUpdate(world, sock, encoder, deleteList)
 		}},
 	}...)
 
