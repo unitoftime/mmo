@@ -29,6 +29,11 @@ func main() {
 		panic(err)
 	}
 
+	serverConn := mmo.ServerConn{
+		Encoder: serdes.New(),
+		Sock: sock,
+	}
+
 	// Load Game
 	engine := ecs.NewWorld()
 	_ = mmo.LoadGame(engine)
@@ -40,14 +45,14 @@ func main() {
 	// TODO - make configurable
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
-	serverSystems := mmo.CreateServerSystems(engine, sock, networkChannel, deleteList)
+	serverSystems := mmo.CreateServerSystems(engine, serverConn, networkChannel, deleteList)
 
 	quit := ecs.Signal{}
 	quit.Set(false)
 
 	go ecs.RunGameFixed(serverSystems, &quit)
 
-	go mmo.ServeProxyConnection(sock, engine, networkChannel, deleteList)
+	go mmo.ServeProxyConnection(serverConn, engine, networkChannel, deleteList)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt)

@@ -4,9 +4,6 @@ import (
 	// "log"
 	"time"
 	"math"
-	"net"
-
-	"go.nanomsg.org/mangos/v3"
 
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/tile"
@@ -104,11 +101,10 @@ func CreatePhysicsSystems(world *ecs.World) []ecs.System {
 	return physicsSystems
 }
 
-func CreateClientSystems(world *ecs.World, conn net.Conn) []ecs.System {
-	encoder := serdes.New()
+func CreateClientSystems(world *ecs.World, clientConn ClientConn) []ecs.System {
 	clientSystems := []ecs.System{
 		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
-			ClientSendUpdate(world, conn, encoder)
+			ClientSendUpdate(world, clientConn)
 		}},
 	}
 
@@ -117,9 +113,7 @@ func CreateClientSystems(world *ecs.World, conn net.Conn) []ecs.System {
 	return clientSystems
 }
 
-func CreateServerSystems(world *ecs.World, sock mangos.Socket, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) []ecs.System {
-	encoder := serdes.New()
-
+func CreateServerSystems(world *ecs.World, serverConn ServerConn, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) []ecs.System {
 	serverSystems := []ecs.System{
 		CreatePollNetworkSystem(world, networkChannel),
 	}
@@ -129,7 +123,7 @@ func CreateServerSystems(world *ecs.World, sock mangos.Socket, networkChannel ch
 
 	serverSystems = append(serverSystems, []ecs.System{
 		ecs.System{"ServerSendUpdate", func(dt time.Duration) {
-			ServerSendUpdate(world, sock, encoder, deleteList)
+			ServerSendUpdate(world, serverConn, deleteList)
 		}},
 	}...)
 

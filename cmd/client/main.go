@@ -85,6 +85,11 @@ func runGame() {
 
 	conn := websocket.NetConn(ctx, c, websocket.MessageBinary)
 
+	clientConn := mmo.ClientConn{
+		Encoder: serdes.New(),
+		Conn: conn,
+	}
+
 	win, err := glitch.NewWindow(1920, 1080, "MMO", glitch.WindowConfig{
 		Vsync: true,
 	})
@@ -110,7 +115,7 @@ func runGame() {
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
 	world := ecs.NewWorld()
-	go mmo.ClientReceive(world, conn, networkChannel)
+	go mmo.ClientReceive(world, clientConn, networkChannel)
 
 	tmap := mmo.LoadGame(world)
 
@@ -192,7 +197,7 @@ func runGame() {
 		}},
 	}
 
-	physicsSystems := mmo.CreateClientSystems(world, conn)
+	physicsSystems := mmo.CreateClientSystems(world, clientConn)
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {

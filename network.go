@@ -13,11 +13,19 @@ import (
 	"github.com/unitoftime/mmo/serdes"
 	"github.com/unitoftime/mmo/game"
 )
-type Websocket struct {
-	net.Conn
+
+
+type ClientConn struct {
+	Encoder *serdes.Serdes
+	Conn net.Conn
 }
 
-func ClientSendUpdate(world *ecs.World, conn net.Conn, encoder *serdes.Serdes) {
+type ServerConn struct {
+	Encoder *serdes.Serdes
+	Sock mangos.Socket
+}
+
+func ClientSendUpdate(world *ecs.World, clientConn ClientConn) {
 	ecs.Map2(world, func(id ecs.Id, _ *ClientOwned, input *physics.Input) {
 		update := serdes.WorldUpdate{
 			WorldData: map[ecs.Id][]ecs.Component{
@@ -26,12 +34,13 @@ func ClientSendUpdate(world *ecs.World, conn net.Conn, encoder *serdes.Serdes) {
 		}
 		log.Println("ClientSendUpdate:", update)
 		// serializedInput, err := serdes.MarshalWorldUpdateMessage(update)
-		serializedInput, err := encoder.Marshal(update)
+		serializedInput, err := clientConn.Encoder.Marshal(update)
 		if err != nil {
 			log.Println("Flatbuffers, Failed to serialize", err)
 		}
 
-		_, err = conn.Write(serializedInput)
+		log.Println("ClientSendUpdate:", len(serializedInput))
+		_, err = clientConn.Conn.Write(serializedInput)
 		if err != nil {
 			log.Println("Error Sending:", err)
 			return
@@ -39,14 +48,12 @@ func ClientSendUpdate(world *ecs.World, conn net.Conn, encoder *serdes.Serdes) {
 	})
 }
 
-func ClientReceive(world *ecs.World, conn net.Conn, networkChannel chan serdes.WorldUpdate) {
+func ClientReceive(world *ecs.World, clientConn ClientConn, networkChannel chan serdes.WorldUpdate) {
 	const MaxMsgSize int = 4 * 1024
-
-	encoder := serdes.New()
 
 	msg := make([]byte, MaxMsgSize)
 	for {
-		n, err := conn.Read(msg)
+		n, err := clientConn.Conn.Read(msg)
 
 		if err != nil {
 			log.Println("Read Error:", err)
@@ -56,8 +63,7 @@ func ClientReceive(world *ecs.World, conn net.Conn, networkChannel chan serdes.W
 
 		log.Println("Read bytes", n)
 
-		// fbMessage, err := serdes.UnmarshalMessage(msg)
-		fbMessage, err := encoder.Unmarshal(msg[:n]) // Note: slice off based on how many bytes we read
+		fbMessage, err := clientConn.Encoder.Unmarshal(msg[:n]) // Note: slice off based on how many bytes we read
 		if err != nil {
 			log.Println("Failed to unmarshal:", err)
 			continue
@@ -78,7 +84,7 @@ func ClientReceive(world *ecs.World, conn net.Conn, networkChannel chan serdes.W
 	}
 }
 
-func ServerSendUpdate(world *ecs.World, sock mangos.Socket, encoder *serdes.Serdes, deleteList *DeleteList) {
+func ServerSendUpdate(world *ecs.World, serverConn ServerConn, deleteList *DeleteList) {
 	deleteList.mu.Lock()
 	// TODO - Optimization opportunity: You could have a front-buffer and a back-buffer then toggle which one is the write buffer and which is the read buffer. Then you don't have to copy.
 	dListCopy := make([]ecs.Id, len(deleteList.list))
@@ -109,13 +115,14 @@ func ServerSendUpdate(world *ecs.World, sock mangos.Socket, encoder *serdes.Serd
 			// log.Println("ServerSendUpdate WorldUpdate:", update)
 
 			// serializedUpdate, err := serdes.MarshalWorldUpdateMessage(update)
-			serializedUpdate, err := encoder.Marshal(update)
+			serializedUpdate, err := serverConn.Encoder.Marshal(update)
 			if err != nil {
 				log.Println("Error Marshalling", err)
 				return
 			}
 
-			err = sock.Send(serializedUpdate)
+			log.Println("ServerSendUpdate:", len(serializedUpdate))
+			err = serverConn.Sock.Send(serializedUpdate)
 			if err != nil {
 				log.Println("Error Sending:", err)
 				return
@@ -134,23 +141,20 @@ func NewDeleteList() *DeleteList {
 	}
 }
 
-
-
-func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) {
+func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) {
 	log.Println("Server: ServeProxyConnection")
 	loginMap := make(map[uint64]ecs.Id)
 
-	encoder := serdes.New()
-
 	// Read data
 	for {
-		msg, err := sock.Recv()
+		msg, err := serverConn.Sock.Recv()
 		if err != nil {
 			log.Println("Read Error:", err)
 		}
 
+		log.Println(len(msg))
 		// TODO - Do mangos sockets automatically slice the msg buffer? I guess they do?
-		fbMessage, err := encoder.Unmarshal(msg)
+		fbMessage, err := serverConn.Encoder.Unmarshal(msg)
 		if err != nil {
 			log.Println("Failed to unmarshal:", err)
 			continue
@@ -193,11 +197,12 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 			loginMap[t.UserId] = id
 
 			// loginResp := serdes.MarshalClientLoginRespMessage(t.UserId, id)
-			loginResp, err := encoder.Marshal(serdes.ClientLoginResp{t.UserId, id})
+			loginResp, err := serverConn.Encoder.Marshal(serdes.ClientLoginResp{t.UserId, id})
 			if err != nil {
 				log.Println("Failed to send Marshal")
 			}
-			err = sock.Send(loginResp)
+			log.Println("LoginResp:", len(loginResp))
+			err = serverConn.Sock.Send(loginResp)
 			if err != nil {
 				log.Println("Failed to send login response")
 			}
@@ -213,12 +218,13 @@ func ServeProxyConnection(sock mangos.Socket, world *ecs.World, networkChannel c
 			deleteList.mu.Unlock()
 
 			// logoutResp := serdes.MarshalClientLogoutRespMessage(t.UserId, id)
-			logoutResp, err := encoder.Marshal(serdes.ClientLogoutResp{t.UserId, id})
+			logoutResp, err := serverConn.Encoder.Marshal(serdes.ClientLogoutResp{t.UserId, id})
 			if err != nil {
 				log.Println("Failed to send Marshal")
 			}
+			log.Println("logoutResp:", len(logoutResp))
 
-			err = sock.Send(logoutResp)
+			err = serverConn.Sock.Send(logoutResp)
 			if err != nil {
 				log.Println("Failed to send logout response")
 			}
