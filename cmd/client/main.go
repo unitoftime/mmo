@@ -133,6 +133,8 @@ func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			{
 				ui.Clear()
 				group.Clear()
+				camera.SetOrtho2D(win.Bounds())
+				camera.SetView2D(0, 0, 1.0, 1.0)
 
 				menuRect := win.Bounds().SliceHorizontal(500).SliceVertical(500)
 				group.Panel(panelSprite, menuRect)
@@ -312,4 +314,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	}
 
 	ecs.RunGame(inputSystems, physicsSystems, renderSystems, &quit)
+
+	// TODO - I'm not sure if this is the proper way to close because `ClientReceive` is still reading, so closing here will cause that to fail
+	clientConn.Close()
 }

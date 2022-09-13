@@ -19,6 +19,9 @@ type ClientConn struct {
 	Encoder *serdes.Serdes
 	Conn net.Conn
 }
+func (c *ClientConn) Close() {
+	c.Conn.Close()
+}
 
 type ServerConn struct {
 	Encoder *serdes.Serdes

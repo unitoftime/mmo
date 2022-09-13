@@ -61,7 +61,7 @@ type Serdes struct {
 func New() *Serdes {
 	var encBuf, decBuf bytes.Buffer
 	return &Serdes{
-		Method: "gob",
+		Method: "binary",
 
 		GobEncoder: gob.NewEncoder(&encBuf),
 		EncBuf: &encBuf,
