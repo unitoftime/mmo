@@ -34,6 +34,28 @@ import (
 // 	Id ecs.Id
 // }
 
+func (s *Serdes) FlatbufferMarshal(v any) ([]byte, error) {
+	switch t := v.(type) {
+	case WorldUpdate:
+		return marshalWorldUpdateMessage(t)
+	case ClientLogin:
+		return marshalClientLoginMessage(t), nil
+	case ClientLoginResp:
+		return marshalClientLoginRespMessage(t), nil
+	case ClientLogout:
+		return marshalClientLogoutMessage(t), nil
+	case ClientLogoutResp:
+		return marshalClientLogoutRespMessage(t), nil
+	}
+	panic("Unknown data type")
+}
+
+func (s *Serdes) FlatbufferUnmarshal(dat []byte) (any, error) {
+	return unmarshalMessage(dat)
+}
+
+//--------------------------------------------------------------------------------
+
 func marshalClientLoginMessage(v ClientLogin) []byte {
 	builder := flatbuffers.NewBuilder(1024)
 	flatmsg.ClientLoginStart(builder)

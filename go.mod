@@ -18,6 +18,7 @@ require (
 	github.com/go-gl/mathgl v1.0.0 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
+	github.com/kelindar/binary v1.0.17 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/ojrac/opensimplex-go v1.0.2 // indirect
 	github.com/ungerik/go3d v0.0.0-20220309204530-55ced4bcb334 // indirect
