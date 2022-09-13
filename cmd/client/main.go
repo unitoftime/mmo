@@ -20,6 +20,7 @@ import (
 
 	"github.com/unitoftime/glitch"
 	"github.com/unitoftime/glitch/shaders"
+	"github.com/unitoftime/glitch/ui"
 
 	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/mmo/game"
@@ -31,7 +32,7 @@ import (
 )
 
 //go:embed packed.json packed.png
-var f embed.FS
+var fs embed.FS
 
 func check(err error) {
 	if err != nil {
@@ -58,7 +59,7 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	glitch.Run(runGame)
+	glitch.Run(launch)
 
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
@@ -73,7 +74,103 @@ func main() {
 	}
 }
 
-func runGame() {
+func launch() {
+	win, err := glitch.NewWindow(1920, 1080, "MMO", glitch.WindowConfig{
+		Vsync: true,
+	})
+
+	check(err)
+	// win.SetSmooth(false)
+
+	// camera := glitch.NewCameraOrtho()
+	// camera.SetOrtho2D(win)
+	// camera.SetView2D(0, 0, 1.0, 1.0)
+
+	load := asset.NewLoad(fs)
+	// load := asset.NewLoad(os.DirFS("http://localhost:8081"))
+	spritesheet, err := load.Spritesheet("packed.json", false)
+	check(err)
+
+	shader, err := glitch.NewShader(shaders.SpriteShader)
+	if err != nil { panic(err) }
+
+	runMenu(win, load, spritesheet, shader)
+}
+
+func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spritesheet, shader *glitch.Shader) {
+	panelSprite, err := spritesheet.GetNinePanel("panel.png", glitch.R(2, 2, 2, 2))
+	if err != nil { panic(err) }
+	buttonSprite, err := spritesheet.GetNinePanel("button.png", glitch.R(1, 1, 1, 1))
+	if err != nil { panic(err) }
+	buttonHoverSprite, err := spritesheet.GetNinePanel("button_hover.png", glitch.R(1, 1, 1, 1))
+	if err != nil { panic(err) }
+	buttonPressSprite, err := spritesheet.GetNinePanel("button_press.png", glitch.R(1, 1, 1, 1))
+	if err != nil { panic(err) }
+
+	panelSprite.Scale = 8
+	buttonSprite.Scale = 8
+	buttonHoverSprite.Scale = 8
+	buttonPressSprite.Scale = 8
+
+	atlas, err := glitch.DefaultAtlas()
+	if err != nil { panic(err) }
+
+	camera := glitch.NewCameraOrtho()
+	camera.SetOrtho2D(win.Bounds())
+	camera.SetView2D(0, 0, 1.0, 1.0)
+	group := ui.NewGroup(win, camera, atlas)
+
+	quit := ecs.Signal{}
+	quit.Set(false)
+	renderSystems := []ecs.System{
+		ecs.System{"UpdateWindow", func(dt time.Duration) {
+			if win.JustPressed(glitch.KeyBackspace) {
+				quit.Set(true)
+			}
+
+			glitch.Clear(win, glitch.Black)
+
+			{
+				ui.Clear()
+				group.Clear()
+
+				menuRect := win.Bounds().SliceHorizontal(500).SliceVertical(500)
+				group.Panel(panelSprite, menuRect)
+
+				paddingRect := glitch.R(-10,-10,-10,-10)
+				buttonHeight := float32(50)
+				buttonWidth := float32(200)
+
+				// Play button
+				{
+					buttonRect := menuRect.SliceHorizontal(buttonHeight).SliceVertical(buttonWidth).Moved(glitch.Vec2{0, buttonHeight})
+					if group.Button(buttonSprite, buttonHoverSprite, buttonPressSprite, buttonRect) {
+						runGame(win, load, spritesheet, shader)
+					}
+					group.SetColor(glitch.RGBA{0, 0, 0, 1})
+					group.Text("Play", buttonRect.Pad(paddingRect), glitch.Vec2{0.5, 0.5})
+				}
+
+				// Exit button
+				{
+					buttonRect := menuRect.SliceHorizontal(buttonHeight).SliceVertical(buttonWidth).Moved(glitch.Vec2{0, -buttonHeight})
+					if group.Button(buttonSprite, buttonHoverSprite, buttonPressSprite, buttonRect) {
+						quit.Set(true)
+					}
+					group.SetColor(glitch.RGBA{0, 0, 0, 1})
+					group.Text("Exit", buttonRect.Pad(paddingRect), glitch.Vec2{0.5, 0.5})
+				}
+
+				group.Draw()
+			}
+
+			win.Update()
+		}},
+	}
+	ecs.RunGame(nil, nil, renderSystems, &quit)
+}
+
+func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spritesheet, shader *glitch.Shader) {
 	// Setup Network
 	url := "ws://localhost:8000"
 
@@ -90,27 +187,8 @@ func runGame() {
 		Conn: conn,
 	}
 
-	win, err := glitch.NewWindow(1920, 1080, "MMO", glitch.WindowConfig{
-		Vsync: true,
-	})
-
-	check(err)
-	// win.SetSmooth(false)
-
-	// camera := glitch.NewCameraOrtho()
-	// camera.SetOrtho2D(win)
-	// camera.SetView2D(0, 0, 1.0, 1.0)
-
-	shader, err := glitch.NewShader(shaders.SpriteShader)
-	if err != nil { panic(err) }
-
 	pass := glitch.NewRenderPass(shader)
 	tilemapPass := glitch.NewRenderPass(shader)
-
-	load := asset.NewLoad(f)
-	// load := asset.NewLoad(os.DirFS("http://localhost:8081"))
-	spritesheet, err := load.Spritesheet("packed.json", false)
-	check(err)
 
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
