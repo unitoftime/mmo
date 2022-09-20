@@ -28,9 +28,15 @@ func main() {
 		panic(err)
 	}
 
-	err = sock.Dial(url)
-	if err != nil {
-		panic(err)
+	for {
+		err = sock.Dial(url)
+		if err != nil {
+			log.Println("Failed to dial, retrying...")
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		break // If we get here, then we've successfully dialed
 	}
 
 	serverConn := ServerConnection{
@@ -38,13 +44,12 @@ func main() {
 		sock: sock,
 	}
 
-	listener, err := net.Listen("tcp", ":8000")
+	listener, err := net.Listen("tcp", ":8001")
 	if err != nil {
 		panic(err)
 	}
 
 	room := NewRoom()
-
 
 	go room.HandleGameUpdates(serverConn)
 

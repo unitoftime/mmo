@@ -101,7 +101,7 @@ func CreatePhysicsSystems(world *ecs.World) []ecs.System {
 	return physicsSystems
 }
 
-func CreateClientSystems(world *ecs.World, clientConn ClientConn) []ecs.System {
+func CreateClientSystems(world *ecs.World, clientConn *ClientConn) []ecs.System {
 	clientSystems := []ecs.System{
 		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
 			ClientSendUpdate(world, clientConn)

@@ -1,10 +1,12 @@
 package mmo
 
 import (
+	"fmt"
 	"log"
-	"net"
+	"errors"
 	"sync"
 	"math/rand"
+	"time"
 
 	"go.nanomsg.org/mangos/v3"
 
@@ -14,13 +16,37 @@ import (
 	"github.com/unitoftime/mmo/game"
 )
 
+// Continually attempts to reconnect to the proxy if disconnected. If connected, receives data and sends over the networkChannel
+func ReconnectLoop(world *ecs.World, c *ClientConn) {
+	for {
+		if c.Closed.Load() { break } // Exit if the ClientConn has been closed
 
-type ClientConn struct {
-	Encoder *serdes.Serdes
-	Conn net.Conn
-}
-func (c *ClientConn) Close() {
-	c.Conn.Close()
+		err := c.Dial()
+		if err != nil {
+			log.Println("Client Websocket Dial Failed:", err)
+			time.Sleep(2 * time.Second) // TODO - reconfigure this before launch. Probably want some random value so everyone isn't reconnecting simultaneously
+			continue
+		}
+
+		// Start the handler
+		err = ClientReceive(world, c, c.updateChan)
+		if err != nil {
+			log.Println("ClientReceive Exited:", err)
+
+			// TODO - Is this a good idea?
+			// Try to close the connection one last time
+			c.conn.Close()
+
+			// Set connected to false, because we just closed it
+			c.Connected.Store(false)
+		}
+		log.Println("Looping!")
+	}
+
+	// Final attempt to cleanup the connection
+	c.Connected.Store(false)
+	c.conn.Close()
+	log.Println("Exiting ClientConn.ReconnectLoop")
 }
 
 type ServerConn struct {
@@ -28,7 +54,12 @@ type ServerConn struct {
 	Sock mangos.Socket
 }
 
-func ClientSendUpdate(world *ecs.World, clientConn ClientConn) {
+func ClientSendUpdate(world *ecs.World, clientConn *ClientConn) {
+	// if clientConn is closed for some reason, then we won't be able to send
+	// TODO - Is this fast enough?
+	connected := clientConn.Connected.Load()
+	if !connected { return } // Exit early because we are not connected
+
 	ecs.Map2(world, func(id ecs.Id, _ *ClientOwned, input *physics.Input) {
 		update := serdes.WorldUpdate{
 			WorldData: map[ecs.Id][]ecs.Component{
@@ -36,43 +67,29 @@ func ClientSendUpdate(world *ecs.World, clientConn ClientConn) {
 			},
 		}
 		log.Println("ClientSendUpdate:", update)
-		// serializedInput, err := serdes.MarshalWorldUpdateMessage(update)
-		serializedInput, err := clientConn.Encoder.Marshal(update)
-		if err != nil {
-			log.Println("Flatbuffers, Failed to serialize", err)
-		}
 
-		log.Println("ClientSendUpdate:", len(serializedInput))
-		_, err = clientConn.Conn.Write(serializedInput)
+		err := clientConn.Send(update)
 		if err != nil {
-			log.Println("Error Sending:", err)
-			return
+			log.Println(err)
 		}
 	})
 }
 
-func ClientReceive(world *ecs.World, clientConn ClientConn, networkChannel chan serdes.WorldUpdate) {
-	const MaxMsgSize int = 4 * 1024
-
-	msg := make([]byte, MaxMsgSize)
+func ClientReceive(world *ecs.World, clientConn *ClientConn, networkChannel chan serdes.WorldUpdate) error {
 	for {
-		n, err := clientConn.Conn.Read(msg)
-
-		if err != nil {
-			log.Println("Read Error:", err)
-			return
-		}
-		if n <= 0 { continue }
-
-		log.Println("Read bytes", n)
-
-		fbMessage, err := clientConn.Encoder.Unmarshal(msg[:n]) // Note: slice off based on how many bytes we read
-		if err != nil {
-			log.Println("Failed to unmarshal:", err)
+		msg, err := clientConn.Recv()
+		if errors.Is(err, ErrNetwork) {
+			// Handle errors where we should stop (ie connection closed or something)
+			fmt.Println(err)
+			return err
+		} else if errors.Is(err, ErrSerdes) {
+			// Handle errors where we should continue (ie serialization)
+			fmt.Println(err)
 			continue
 		}
+		if msg == nil { continue }
 
-		switch t := fbMessage.(type) {
+		switch t := msg.(type) {
 		case serdes.WorldUpdate:
 			// log.Println(t)
 			networkChannel <- t
@@ -80,11 +97,14 @@ func ClientReceive(world *ecs.World, clientConn ClientConn, networkChannel chan 
 			log.Println("serdes.ClientLoginResp", t)
 			// ecs.Write(engine, ecs.Id(t.Id), ClientOwned{})
 			// ecs.Write(engine, ecs.Id(t.Id), Body{})
+			// TODO - is this a hack? Should I be using the networkChannel?
 			ecs.Write(world, ecs.Id(t.Id), ecs.C(ClientOwned{}), ecs.C(game.Body{}))
 		default:
 			panic("Unknown message type")
 		}
 	}
+
+	return nil
 }
 
 func ServerSendUpdate(world *ecs.World, serverConn ServerConn, deleteList *DeleteList) {
@@ -96,12 +116,14 @@ func ServerSendUpdate(world *ecs.World, serverConn ServerConn, deleteList *Delet
 	deleteList.list = deleteList.list[:0]
 	deleteList.mu.Unlock()
 
+	// Build the world update
 	update := serdes.WorldUpdate{
 		UserId: 0,
 		WorldData: make(map[ecs.Id][]ecs.Component),
 		Delete: dListCopy,
 	}
 
+	// Add relevant data to the world update
 	{
 		ecs.Map2(world, func(id ecs.Id, transform *physics.Transform, body *game.Body) {
 			compList := []ecs.Component{
@@ -112,9 +134,10 @@ func ServerSendUpdate(world *ecs.World, serverConn ServerConn, deleteList *Delet
 		})
 	}
 
+	// Send world update to al users
 	{
 		ecs.Map(world, func(id ecs.Id, user *User) {
-			update.UserId = user.Id
+			update.UserId = user.Id // Specify the user we want to send the update to
 			// log.Println("ServerSendUpdate WorldUpdate:", update)
 
 			// serializedUpdate, err := serdes.MarshalWorldUpdateMessage(update)
@@ -169,6 +192,8 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 			id := loginMap[t.UserId]
 			// TODO - requires client to put their input on spot 0
 			componentList := t.WorldData[id]
+			if len(componentList) <= 0 { break } // Exit if no content
+
 			inputBox, ok := componentList[0].(ecs.CompBox[physics.Input]) // TODO - should id be replaced with 0?
 			if !ok { continue }
 			input := inputBox.Get()
@@ -181,6 +206,7 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 			log.Println("TrustedUpdate:", trustedUpdate)
 
 			networkChannel <- trustedUpdate
+
 		case serdes.ClientLogin:
 			log.Println("Server: serdes.ClientLogin")
 			// Login player

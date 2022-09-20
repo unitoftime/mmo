@@ -7,14 +7,11 @@ import (
 	"time"
 	"fmt"
 	"log"
-	"context"
 	"embed"
 
 	"runtime"
 	"runtime/pprof"
 	"flag"
-
-	"nhooyr.io/websocket"
 
 	"github.com/unitoftime/ecs"
 
@@ -147,7 +144,7 @@ func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				{
 					buttonRect := menuRect.SliceHorizontal(buttonHeight).SliceVertical(buttonWidth).Moved(glitch.Vec2{0, buttonHeight})
 					if group.Button(buttonSprite, buttonHoverSprite, buttonPressSprite, buttonRect) {
-						runGame(win, load, spritesheet, shader)
+						runGame(win, load, spritesheet, shader, atlas)
 					}
 					group.SetColor(glitch.RGBA{0, 0, 0, 1})
 					group.Text("Play", buttonRect.Pad(paddingRect), glitch.Vec2{0.5, 0.5})
@@ -172,30 +169,34 @@ func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	ecs.RunGame(nil, nil, renderSystems, &quit)
 }
 
-func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spritesheet, shader *glitch.Shader) {
-	// Setup Network
-	url := "ws://localhost:8000"
+func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spritesheet, shader *glitch.Shader, atlas *glitch.Atlas) {
+	world := ecs.NewWorld()
+	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
-	ctx := context.Background()
-	c, resp, err := websocket.Dial(ctx, url, nil)
-	check(err)
+	url := "ws://localhost:8001"
+	clientConn := mmo.NewClientConn(url, networkChannel)
 
-	log.Println("Connection Response:", resp)
+	go mmo.ReconnectLoop(world, clientConn)
+	// // Setup Network
+	// url := "ws://localhost:8000"
 
-	conn := websocket.NetConn(ctx, c, websocket.MessageBinary)
+	// ctx := context.Background()
+	// c, resp, err := websocket.Dial(ctx, url, nil)
+	// check(err)
 
-	clientConn := mmo.ClientConn{
-		Encoder: serdes.New(),
-		Conn: conn,
-	}
+	// log.Println("Connection Response:", resp)
+
+	// conn := websocket.NetConn(ctx, c, websocket.MessageBinary)
+
+	// clientConn := mmo.ClientConn{
+	// 	Encoder: serdes.New(),
+	// 	Conn: conn,
+	// }
 
 	pass := glitch.NewRenderPass(shader)
 	tilemapPass := glitch.NewRenderPass(shader)
 
-	networkChannel := make(chan serdes.WorldUpdate, 1024)
-
-	world := ecs.NewWorld()
-	go mmo.ClientReceive(world, clientConn, networkChannel)
+	// go mmo.ClientReceive(world, clientConn, networkChannel)
 
 	tmap := mmo.LoadGame(world)
 
@@ -223,8 +224,11 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		manSprites[i], err = spritesheet.Get(fmt.Sprintf("man%d.png", i))
 		check(err)
 	}
-	// manSprite, err := spritesheet.Get("man1.png")
-	// check(err)
+
+	screenCamera := glitch.NewCameraOrtho()
+	screenCamera.SetOrtho2D(win.Bounds())
+	screenCamera.SetView2D(0, 0, 1.0, 1.0)
+	group := ui.NewGroup(win, screenCamera, atlas)
 
 	camera := render.NewCamera(win.Bounds(), 0, 0)
 	zoomSpeed := 0.1
@@ -307,6 +311,27 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			pass.SetUniform("projection", camera.Camera.Projection)
 			pass.SetUniform("view", camera.Camera.View)
 			pass.Draw(win)
+
+			// Draw UI
+			ui.Clear()
+			{
+				group.Clear()
+				screenCamera.SetOrtho2D(win.Bounds())
+				screenCamera.SetView2D(0, 0, 1.0, 1.0)
+
+				paddingRect := glitch.R(-10,-10,-10,-10)
+				connectedRect := win.Bounds()
+				connectedRect = connectedRect.Pad(paddingRect)
+				textScale := float32(0.5)
+				if clientConn.Connected.Load() {
+					group.SetColor(glitch.RGBA{0, 1, 0, 1})
+					group.FixedText("Connected", connectedRect, glitch.Vec2{1, 0}, textScale)
+				} else {
+					group.SetColor(glitch.RGBA{1, 0, 0, 1})
+					group.FixedText("Disconnected", connectedRect, glitch.Vec2{1, 0}, textScale)
+				}
+				group.Draw()
+			}
 		}},
 		ecs.System{"UpdateWindow", func(dt time.Duration) {
 			win.Update()
@@ -314,7 +339,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	}
 
 	ecs.RunGame(inputSystems, physicsSystems, renderSystems, &quit)
-
+	log.Println("Finished ecs.RunGame")
 	// TODO - I'm not sure if this is the proper way to close because `ClientReceive` is still reading, so closing here will cause that to fail
 	clientConn.Close()
 }
