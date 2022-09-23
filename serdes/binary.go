@@ -71,7 +71,7 @@ func UnmarshalBinary(dat []byte) (any, error) {
 		return ret, err
 	}
 
-	panic("UNKNOWN")
+	return nil, fmt.Errorf("Unknown message header %v", msg) }
 }
 
 // type Message struct {
@@ -176,7 +176,8 @@ func (b *BinaryComponent) ToNormal() (ecs.Component, error) {
 		if err != nil { return nil, err }
 		return ecs.C(v), nil
 	}
-	panic("UNKNOWN")
+
+	return nil, fmt.Errorf("Unknown Message header %v", b) }
 }
 
 

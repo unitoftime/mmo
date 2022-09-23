@@ -131,7 +131,8 @@ func (s *Serdes) JsonMarshal(v any) ([]byte, error) {
 		if err != nil { return nil, err }
 		return json.Marshal(JsonMessage{ClientLogoutRespType, dat})
 	}
-	panic("Unknown data type")
+
+	return nil, fmt.Errorf("Unknown Data Type %T", v) }
 }
 
 func (s *Serdes) JsonUnmarshal(dat []byte) (any, error) {
@@ -165,5 +166,6 @@ func (s *Serdes) JsonUnmarshal(dat []byte) (any, error) {
 		err := json.Unmarshal(msg.Data, &dat)
 		return dat, err
 	}
-	panic("Unknown Type!")
+
+	return nil, fmt.Errorf("Unknown Message type %d", msg.Type) }
 }

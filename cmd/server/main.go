@@ -33,9 +33,12 @@ func main() {
 	// TODO - make configurable
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
-	server := mmo.NewServer(url, func(conn mmo.ServerConn) error {
+	server, err := mmo.NewServer(url, func(conn mmo.ServerConn) error {
 		return mmo.ServeProxyConnection(conn, world, networkChannel, deleteList)
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	serverSystems := mmo.CreateServerSystems(world, server, networkChannel, deleteList)
 

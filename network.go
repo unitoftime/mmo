@@ -80,7 +80,7 @@ func ClientReceive(world *ecs.World, sock *mnet.Socket, playerId *ecs.Id, networ
 			ecs.Write(world, ecs.Id(t.Id), ecs.C(game.Body{}))
 			*playerId = ecs.Id(t.Id)
 		default:
-			panic("Unknown message type")
+			log.Error().Msg("Unknown message type")
 		}
 	}
 
@@ -304,7 +304,7 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 				log.Print("Failed to send", resp)
 			}
 		default:
-			panic("Unknown message type")
+			log.Error().Msg("Unknown message type")
 		}
 	}
 }
@@ -335,10 +335,10 @@ type Server struct {
 }
 
 // TODO - use mnet.URL?
-func NewServer(url string, handler func(ServerConn) error) *Server {
+func NewServer(url string, handler func(ServerConn) error) (*Server, error) {
 	listener, err := net.Listen("tcp", url)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	server := Server{
