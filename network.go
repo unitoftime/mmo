@@ -2,11 +2,13 @@ package mmo
 
 import (
 	"fmt"
-	"log"
+	"time"
 	"errors"
 	"sync"
 	"math/rand"
 	"net"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/physics"
@@ -29,11 +31,11 @@ func ClientSendUpdate(world *ecs.World, clientConn *mnet.Socket, playerId ecs.Id
 			playerId: []ecs.Component{ecs.C(input)},
 		},
 	}
-	log.Println("ClientSendUpdate:", update)
+	// log.Print("ClientSendUpdate:", update)
 
 	err := clientConn.Send(update)
 	if err != nil {
-		log.Println(err)
+		log.Warn().Err(err).Msg("ClientSendUpdate")
 	}
 
 	// ecs.Map2(world, func(id ecs.Id, _ *ClientOwned, input *physics.Input) {
@@ -56,11 +58,11 @@ func ClientReceive(world *ecs.World, sock *mnet.Socket, playerId *ecs.Id, networ
 		msg, err := sock.Recv()
 		if errors.Is(err, mnet.ErrNetwork) {
 			// Handle errors where we should stop (ie connection closed or something)
-			fmt.Println(err)
+			log.Warn().Err(err).Msg("ClientReceive NetworkErr")
 			return err
 		} else if errors.Is(err, mnet.ErrSerdes) {
 			// Handle errors where we should continue (ie serialization)
-			fmt.Println(err)
+			log.Error().Err(err).Msg("ClientReceive SerdesErr")
 			continue
 		}
 		if msg == nil { continue }
@@ -70,7 +72,7 @@ func ClientReceive(world *ecs.World, sock *mnet.Socket, playerId *ecs.Id, networ
 			// log.Println(t)
 			networkChannel <- t
 		case serdes.ClientLoginResp:
-			log.Println("serdes.ClientLoginResp", t)
+			log.Print("serdes.ClientLoginResp", t)
 			// ecs.Write(engine, ecs.Id(t.Id), ClientOwned{})
 			// ecs.Write(engine, ecs.Id(t.Id), Body{})
 			// TODO - is this a hack? Should I be using the networkChannel?
@@ -176,11 +178,6 @@ func (d *DeleteList) CopyAndClear() []ecs.Id {
 
 // This calculates the update to send to all players, finds the proxy associated with them, and sends that update over the wire
 func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) {
-	// Debug: Print out the number of active/logged in users
-	for proxyId, proxyConn := range server.connections {
-		log.Println(fmt.Sprintf("Proxy %d - %d active users", proxyId, len(proxyConn.loginMap)))
-	}
-
 	dListCopy := deleteList.CopyAndClear()
 
 	// Just delete everything that is gone
@@ -214,7 +211,7 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 
 			proxy, ok := server.GetProxy(user.ProxyId)
 			if !ok {
-				log.Println("Missing Proxy for user!")
+				log.Print("Missing Proxy for user!")
 				// This means that the proxy was disconnected
 				deleteList.Append(id) // This deletes the user (ie they logged out)
 				return
@@ -222,7 +219,7 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 
 			err := proxy.Send(update)
 			if err != nil {
-				log.Println("ServerSendUpdate", err)
+				log.Warn().Err(err).Msg("ServerSendUpdate")
 				return
 			}
 		})
@@ -230,7 +227,7 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 }
 
 func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) error {
-	log.Println("Server: ServeProxyConnection")
+	log.Print("Server: ServeProxyConnection")
 
 	// Read data
 	for {
@@ -238,11 +235,11 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 		if errors.Is(err, mnet.ErrNetwork) {
 			// Handle errors where we should stop (ie connection closed or something)
 			// TODO - when this triggers, I need to have the eventual code path to: 1. logout all users who were on this proxy. 2. make sure the socket is closed (ie any cleanup)
-			fmt.Println(err)
+			log.Warn().Err(err).Msg("ServeProxyConnection NetworkErr")
 			return err
 		} else if errors.Is(err, mnet.ErrSerdes) {
 			// Handle errors where we should continue (ie serialization)
-			fmt.Println(err)
+			log.Error().Err(err).Msg("ServeProxyConnection SerdesErr")
 			continue
 		}
 		if msg == nil { continue }
@@ -264,12 +261,12 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 					id: []ecs.Component{ecs.C(input)},
 				},
 			}
-			log.Println("TrustedUpdate:", trustedUpdate)
+			// log.Print("TrustedUpdate:", trustedUpdate)
 
 			networkChannel <- trustedUpdate
 
 		case serdes.ClientLogin:
-			log.Println("Server: serdes.ClientLogin")
+			log.Print("Server: serdes.ClientLogin")
 			// Login player
 			// TODO - put into a function
 			// TODO - not thread safe! Concurrent map access
@@ -290,10 +287,10 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 			resp := serdes.ClientLoginResp{t.UserId, id}
 			err := serverConn.Send(resp)
 			if err != nil {
-				log.Println("Failed to send", resp)
+				log.Warn().Err(err).Msg(fmt.Sprintf("Failed to send", resp))
 			}
 		case serdes.ClientLogout:
-			log.Println("Server: serdes.ClientLogout")
+			log.Print("Server: serdes.ClientLogout")
 			id := serverConn.loginMap[t.UserId]
 			ecs.Delete(world, id)
 
@@ -304,7 +301,7 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 			resp := serdes.ClientLogoutResp{t.UserId, id}
 			err := serverConn.Send(resp)
 			if err != nil {
-				log.Println("Failed to send", resp)
+				log.Print("Failed to send", resp)
 			}
 		default:
 			panic("Unknown message type")
@@ -354,12 +351,22 @@ func NewServer(url string, handler func(ServerConn) error) *Server {
 
 
 func (s *Server) Start() {
+	// Debug: Print out server stats
+	go func() {
+		for {
+			time.Sleep(10 * time.Second)
+			for proxyId, proxyConn := range s.connections {
+				log.Print(fmt.Sprintf("Proxy %d - %d active users", proxyId, len(proxyConn.loginMap)))
+			}
+		}
+	}()
+
 	counter := uint64(0)
 	for {
 		// Wait for a connection.
 		conn, err := s.listener.Accept()
 		if err != nil {
-			log.Println("Failed to accept connection", err)
+			log.Warn().Err(err).Msg("Failed to accept connection")
 		}
 
 		// TODO - is this bad? This socket should never get dialed
@@ -380,7 +387,7 @@ func (s *Server) Start() {
 		go func() {
 			err := s.handler(serverConn)
 			if err != nil {
-				log.Println(err)
+				log.Warn().Err(err).Msg("Server Handler finished")
 			}
 
 			// Once the handler exits remove the proxy

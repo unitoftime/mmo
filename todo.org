@@ -1,9 +1,0 @@
-* DONE Makefile to help build and test quickly
-  CLOSED: [2021-08-22 Sun 11:45]
-* TODO Write a Proxy Server
-* TODO Connect proxy to GameServers
-* TODO Reconnects for client and proxy
-* TODO Handle User Logins (OAuth Google Signin)
-* TODO Flatbuffer serialization
-** TODO Fix the stuttering!
-* TODO How to do deployments

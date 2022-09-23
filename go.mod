@@ -20,12 +20,16 @@ require (
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/klauspost/compress v1.15.10 // indirect
+	github.com/mattn/go-colorable v0.1.12 // indirect
+	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/ojrac/opensimplex-go v1.0.2 // indirect
+	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/ungerik/go3d v0.0.0-20220309204530-55ced4bcb334 // indirect
 	github.com/unitoftime/gl v0.0.0-20220818121237-9415942164ed // indirect
 	github.com/unitoftime/glfw v0.0.0-20220818121319-cf735857a346 // indirect
 	github.com/unitoftime/packer v0.0.0-20220105185326-f541e031de11 // indirect
 	github.com/zyedidia/generic v1.1.0 // indirect
 	golang.org/x/image v0.0.0-20220902085622-e7cb96979f69 // indirect
+	golang.org/x/sys v0.0.0-20210927094055-39ccf1dd6fa6 // indirect
 	honnef.co/go/js/dom v0.0.0-20210725211120-f030747120f2 // indirect
 )

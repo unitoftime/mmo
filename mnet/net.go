@@ -2,7 +2,6 @@ package mnet
 
 import (
 	"fmt"
-	"log"
 	"errors"
 	"time"
 	"net"
@@ -11,6 +10,8 @@ import (
 	"context"
 
 	"nhooyr.io/websocket"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/unitoftime/mmo/serdes"
 	// "github.com/unitoftime/ecs"
@@ -27,7 +28,7 @@ func ReconnectLoop(sock *Socket, handler func(*Socket) error) {
 
 		err := sock.Dial()
 		if err != nil {
-			log.Println("Client Websocket Dial Failed:", err)
+			log.Warn().Err(err).Msg("Client Websocket Dial Failed")
 			time.Sleep(2 * time.Second) // TODO - reconfigure this before launch. Probably want some random value so everyone isn't reconnecting simultaneously
 			continue
 		}
@@ -36,7 +37,7 @@ func ReconnectLoop(sock *Socket, handler func(*Socket) error) {
 		// err = ClientReceive(world, c, playerId, updateChan)
 		err = handler(sock)
 		if err != nil {
-			log.Println("ClientReceive Exited:", err)
+			log.Warn().Err(err).Msg("ClientReceive handler finished")
 
 			// TODO - Is this a good idea?
 			// Try to close the connection one last time
@@ -45,13 +46,13 @@ func ReconnectLoop(sock *Socket, handler func(*Socket) error) {
 			// Set connected to false, because we just closed it
 			sock.Connected.Store(false)
 		}
-		log.Println("Looping!")
+		log.Print("Looping!")
 	}
 
 	// Final attempt to cleanup the connection
 	sock.Connected.Store(false)
 	sock.conn.Close()
-	log.Println("Exiting ClientConn.ReconnectLoop")
+	log.Print("Exiting ClientConn.ReconnectLoop")
 }
 
 // This is a wrapper for the client websocket connection
@@ -90,9 +91,9 @@ func NewConnectedSocket(conn net.Conn) *Socket {
 }
 
 func (s *Socket) Dial() error {
+	log.Print("Dialing", s.url)
 	// Handle websockets
 	if s.scheme == "ws" {
-		log.Println("Dialing", s.url)
 		ctx := context.Background()
 		wsConn, _, err := websocket.Dial(ctx, s.url, nil)
 		// log.Println("Connection Response:", resp)
@@ -125,13 +126,13 @@ func (s *Socket) Close() {
 func (s *Socket) Send(msg any) error {
 	ser, err := s.encoder.Marshal(msg)
 	if err != nil {
-		log.Println("Failed to serialize", err)
+		log.Error().Err(err).Msg("Failed to serialize")
 	}
 
 	// log.Println("ClientSendUpdate:", len(ser))
 	_, err = s.conn.Write(ser)
 	if err != nil {
-		log.Println("Error Sending:", err)
+		log.Warn().Err(err).Msg("Failed to send")
 		err = fmt.Errorf("%w: %s", ErrNetwork, err)
 		return err
 	}
@@ -150,18 +151,18 @@ func (s *Socket) Recv() (any, error) {
 
 	n, err := s.conn.Read(dat)
 	if err != nil {
-		log.Println("Read Error:", err)
+		log.Warn().Err(err).Msg("Failed to receive")
 		err = fmt.Errorf("%w: %s", ErrNetwork, err)
 		return nil, err
 	}
 	if n <= 0 { return nil, nil } // There was no message, and no error (likely a keepalive)
 
-	log.Println("Read bytes", n)
+	// log.Print("Read bytes", n)
 
 	// Note: slice off based on how many bytes we read
 	msg, err := s.encoder.Unmarshal(dat[:n])
 	if err != nil {
-		log.Println("Failed to unmarshal:", err)
+		log.Warn().Err(err).Msg("Failed to unmarshal")
 		err = fmt.Errorf("%w: %s", ErrSerdes, err)
 		return nil, err
 	}

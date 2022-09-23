@@ -6,12 +6,14 @@ import (
 	"os"
 	"time"
 	"fmt"
-	"log"
 	"embed"
 
 	"runtime"
 	"runtime/pprof"
 	"flag"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/unitoftime/ecs"
 
@@ -42,32 +44,35 @@ var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 
 func main() {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
 	flag.Parse()
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			log.Fatal("could not create CPU profile: ", err)
+			panic(fmt.Sprintf("could not create CPU profile: ", err))
 		}
 		defer f.Close() // error handling omitted for example
 		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal("could not start CPU profile: ", err)
+			panic(fmt.Sprintf("could not start CPU profile: ", err))
 		}
 		defer pprof.StopCPUProfile()
 	}
 
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	glitch.Run(launch)
 
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
 		if err != nil {
-			log.Fatal("could not create memory profile: ", err)
+			panic(fmt.Sprintf("could not create memory profile: ", err))
 		}
 		defer f.Close() // error handling omitted for example
 		runtime.GC() // get up-to-date statistics
 		if err := pprof.WriteHeapProfile(f); err != nil {
-			log.Fatal("could not write memory profile: ", err)
+			panic(fmt.Sprintf("could not write memory profile: ", err))
 		}
 	}
 }
@@ -201,7 +206,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	check(err)
 	waterTile, err := spritesheet.Get("water.png")
 	check(err)
-	log.Println(*waterTile)
+	log.Print(*waterTile)
 
 	tmapRender := render.NewTilemapRender(spritesheet, map[tile.TileType]*glitch.Sprite{
 		mmo.GrassTile: grassTile,
@@ -291,7 +296,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
 			transform, ok := ecs.Read[physics.Transform](world, playerId)
 			if ok {
-				log.Println("Update Camera", transform)
+				// log.Print("Update Camera", transform)
 				// sprite := comp[1].(*render.Sprite)
 				// camera.Position = sprite.Position
 				camera.Position = glitch.Vec2{float32(transform.X), float32(transform.Y)}
@@ -351,7 +356,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	}
 
 	ecs.RunGame(inputSystems, physicsSystems, renderSystems, &quit)
-	log.Println("Finished ecs.RunGame")
+	log.Print("Finished ecs.RunGame")
 	// TODO - I'm not sure if this is the proper way to close because `ClientReceive` is still reading, so closing here will cause that to fail
 	sock.Close()
 }

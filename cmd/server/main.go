@@ -1,12 +1,11 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/signal"
 
-	// "go.nanomsg.org/mangos/v3/protocol/pair"
-	// _ "go.nanomsg.org/mangos/v3/transport/tcp"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/unitoftime/ecs"
 
@@ -15,11 +14,14 @@ import (
 )
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
+	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// Start the networking layer
 	url := "127.0.0.1:9000"
-	log.Println("Starting Server", url)
+	log.Print("Starting Server", url)
 
 	// Load Game
 	world := ecs.NewWorld()
@@ -49,7 +51,7 @@ func main() {
 	signal.Notify(sigs, os.Interrupt)
 	select{
 	case sig := <-sigs:
-		log.Println("Terminating:", sig)
+		log.Print("Terminating:", sig)
 	}
 	quit.Set(true)
 }

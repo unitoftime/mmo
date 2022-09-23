@@ -1,7 +1,6 @@
 package mmo
 
 import (
-	// "log"
 	"time"
 	"math"
 

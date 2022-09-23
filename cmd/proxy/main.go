@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"os/signal"
 	"net/http"
@@ -13,6 +13,10 @@ import (
 
 	"nhooyr.io/websocket"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+
+	"github.com/unitoftime/mmo/stat"
 	"github.com/unitoftime/mmo/serdes"
 	"github.com/unitoftime/mmo/mnet"
 	"github.com/unitoftime/ecs"
@@ -20,7 +24,8 @@ import (
 )
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
 	url := "tcp://127.0.0.1:9000"
 
@@ -66,13 +71,15 @@ func main() {
 	}
 
 	go mnet.ReconnectLoop(sock, func(sock *mnet.Socket) error {
+		// After we reconnect the proxy to the server, we want to log all the players into the server who were waiting.
 		room.mu.RLock()
 		for userId := range room.Map {
-			log.Println("Reconnect - Sending Login Message for", userId)
-			// err := serverConn.conn.Send(serdes.ClientLogin{userId})
-			err := sock.Send(serdes.ClientLogin{userId})
+			log.Debug().Uint64(stat.UserId, userId).Msg("Reconnect - Sending Login Message for")
+
+			loginMsg := serdes.ClientLogin{userId}
+			err := sock.Send(loginMsg)
 			if err != nil {
-				log.Println(err)
+				log.Error().Err(err).Uint64(stat.UserId, userId).Msg("Failed to send login message")
 			}
 		}
 		room.mu.RUnlock()
@@ -97,7 +104,7 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	log.Println("Starting Proxy", listener.Addr())
+	log.Print("Starting Proxy", listener.Addr())
 
 	errc := make(chan error, 1)
 	go func() {
@@ -109,9 +116,9 @@ func main() {
 
 	select{
 	case err := <-errc:
-		log.Println("Failed to serve:", err)
+		log.Error().Err(err).Msg("Failed to serve")
 	case sig := <-sigs:
-		log.Println("Terminating:", sig)
+		log.Print(fmt.Sprintf("Terminating: %v", sig))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
@@ -119,7 +126,7 @@ func main() {
 
 	err = s.Shutdown(ctx)
 	if err != nil {
-		log.Println("Error shutting down server:", err)
+		log.Error().Err(err).Msg("Failed to shut down server")
 	}
 }
 
@@ -146,7 +153,7 @@ func (s websocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		OriginPatterns: []string{"localhost:8081"}, // TODO - Refactor this once I have a good deployment format
 	})
 	if err != nil {
-		log.Println("Error Accepting Websocket:", err)
+		log.Error().Err(err).Msg("Error Accepting Websocket")
 		return
 	}
 
@@ -166,7 +173,7 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 	defer func() {
 		err := conn.Close()
 		if err != nil {
-			log.Println("Error Closing net.Conn:", err)
+			log.Error().Err(err).Msg("Error closing websocket connection")
 		}
 	}()
 
@@ -183,7 +190,7 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 	userIdCounter++
 	_, ok := room.Map[userId]
 	if ok {
-		log.Println("Duplicate Login Detected! Exiting.")
+		log.Print("Duplicate Login Detected! Exiting.")
 		room.mu.Unlock()
 		return
 	}
@@ -206,11 +213,11 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 	}()
 
 	// Send login message to server
-	log.Println("Sending Login Message for", userId)
+	log.Debug().Uint64(stat.UserId, userId).Msg("Sending Login Message")
 	// err := serverConn.conn.Send(serdes.ClientLogin{userId})
 	err := serverConn.Send(serdes.ClientLogin{userId})
 	if err != nil {
-		log.Println(err)
+		log.Warn().Err(err).Msg("Failed to forward login message")
 		return
 	}
 
@@ -220,7 +227,7 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 		// err := serverConn.conn.Send(serdes.ClientLogout{userId})
 		err := serverConn.Send(serdes.ClientLogout{userId})
 		if err != nil {
-			log.Println(err)
+			log.Warn().Err(err).Msg("Failed to forward logout message")
 		}
 	}()
 
@@ -233,11 +240,11 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 			msg, err := sock.Recv()
 			if errors.Is(err, mnet.ErrNetwork) {
 				timeout <- StopTimeout // Stop timeout because of a read error
-				log.Println(err)
+				log.Warn().Err(err).Msg("Failed to receive")
 				return
 			} else if errors.Is(err, mnet.ErrSerdes) {
 				// Handle errors where we should continue (ie serialization)
-				log.Println(err)
+				log.Error().Err(err).Msg("Failed to serialize")
 				continue
 			}
 
@@ -271,14 +278,12 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 
 			switch t := msg.(type) {
 			case serdes.WorldUpdate:
-				log.Println("Client->Proxy: World Update received")
-				// TODO - replace with mutateInPlace code?
+				// log.Print("Client->Proxy: World Update received")
 				t.UserId = userId
-				// err := serverConn.conn.Send(t)
+
 				err := serverConn.Send(t)
 				if err != nil {
-					log.Println(err)
-					// TODO - I just continue here, even though we failed to send to the server. I think this is the correct logic, but the proxy needs to retry and connect to the server
+					log.Warn().Err(err).Msg("Failed to send")
 				}
 			default:
 				panic("Unknown message type")
@@ -292,11 +297,11 @@ ExitTimeout:
 		select {
 		case res := <-timeout:
 			if res == StopTimeout {
-				log.Println("Manually Stopping Timeout Manager")
+				log.Print("Manually Stopping Timeout Manager")
 				break ExitTimeout
 			}
 		case <-time.After(timeoutSeconds):
-			log.Println("User timed out!")
+			log.Print("User timed out!")
 			break ExitTimeout
 		}
 	}
@@ -319,7 +324,7 @@ func (r *Room) GetClientConn(userId uint64) *ClientConnection {
 	clientConn, ok := r.Map[userId]
 	r.mu.RUnlock()
 	if !ok {
-		log.Println("User Disconnected", userId)
+		log.Print("User Disconnected", userId)
 		return nil
 	}
 
@@ -344,11 +349,11 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 		msg, err := serverConn.Recv()
 		if errors.Is(err, mnet.ErrNetwork) {
 			// Handle errors where we should stop (ie connection closed or something)
-			log.Println(err)
+			log.Warn().Err(err).Msg("HandleGameUpdates NetError")
 			return err
 		} else if errors.Is(err, mnet.ErrSerdes) {
 			// Handle errors where we should continue (ie serialization)
-			log.Println(err)
+			log.Error().Err(err).Msg("HandleGameUpdates SerdesError")
 			continue
 		}
 		if msg == nil { continue }
@@ -366,7 +371,7 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 			t.UserId = 0
 			err := clientConn.sock.Send(t)
 			if err != nil {
-				log.Println("Error Sending WorldUpdate:", err)
+				log.Warn().Err(err).Msg("Error Sending WorldUpdate")
 				// TODO - User disconnected? Remove from map?
 			}
 				// serializedUpdate, err := clientConn.encoder.Marshal(t)
@@ -387,7 +392,7 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 
 			err := clientConn.sock.Send(serdes.ClientLoginResp{t.UserId, ecs.Id(t.Id)})
 			if err != nil {
-				log.Println("Error Sending ClientLoginResp:", err)
+				log.Warn().Err(err).Msg("Error Sending login resp")
 				// TODO - User disconnected? Remove from map?
 			}
 
@@ -416,7 +421,7 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 			// 	// TODO - Send back to server "hey this person disconnected!"
 			// }
 		case serdes.ClientLogoutResp:
-			log.Println("serdes.ClientLogoutResp")
+			log.Print("Received serdes.ClientLogoutResp")
 			// TODO - should I double check that they've been removed from the map?
 			// TODO - I should send a "logged out successful" message
 		default:
