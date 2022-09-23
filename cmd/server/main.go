@@ -5,8 +5,8 @@ import (
 	"os"
 	"os/signal"
 
-	"go.nanomsg.org/mangos/v3/protocol/pair"
-	_ "go.nanomsg.org/mangos/v3/transport/tcp"
+	// "go.nanomsg.org/mangos/v3/protocol/pair"
+	// _ "go.nanomsg.org/mangos/v3/transport/tcp"
 
 	"github.com/unitoftime/ecs"
 
@@ -15,44 +15,35 @@ import (
 )
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	// Start the networking layer
-	url := "tcp://127.0.0.1:9000"
-	log.Println("Starting Mangos Server", url)
-
-	sock, err := pair.NewSocket()
-	if err != nil {
-		panic(err)
-	}
-
-	err = sock.Listen(url)
-	if err != nil {
-		panic(err)
-	}
-
-	serverConn := mmo.ServerConn{
-		Encoder: serdes.New(),
-		Sock: sock,
-	}
+	url := "127.0.0.1:9000"
+	log.Println("Starting Server", url)
 
 	// Load Game
-	engine := ecs.NewWorld()
-	_ = mmo.LoadGame(engine)
+	world := ecs.NewWorld()
+	_ = mmo.LoadGame(world)
 
 	// This is the list of entities to get deleted
-	// TODO - make this thread safe
 	deleteList := mmo.NewDeleteList()
 
 	// TODO - make configurable
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
-	serverSystems := mmo.CreateServerSystems(engine, serverConn, networkChannel, deleteList)
+	server := mmo.NewServer(url, func(conn mmo.ServerConn) error {
+		return mmo.ServeProxyConnection(conn, world, networkChannel, deleteList)
+	})
+
+	serverSystems := mmo.CreateServerSystems(world, server, networkChannel, deleteList)
 
 	quit := ecs.Signal{}
 	quit.Set(false)
 
 	go ecs.RunGameFixed(serverSystems, &quit)
 
-	go mmo.ServeProxyConnection(serverConn, engine, networkChannel, deleteList)
+	// go mmo.ServeProxyConnection(serverConn, engine, networkChannel, deleteList)
+	go server.Start()
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt)

@@ -10,6 +10,7 @@ import (
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/pgen"
 	"github.com/unitoftime/mmo/serdes"
+	"github.com/unitoftime/mmo/mnet"
 )
 
 var seed int64 = 12345
@@ -34,12 +35,13 @@ func LoadGame(world *ecs.World) *tile.Tilemap {
 
 // Represents a logged in user on the server
 type User struct {
-	Name string // TODO - remove and put into a component called "DisplayName"
+	// Name string // TODO - remove and put into a component called "DisplayName"
 	Id uint64
+	ProxyId uint64
 }
 
-type ClientOwned struct {
-}
+// type ClientOwned struct {
+// }
 
 const (
 	GrassTile tile.TileType = iota
@@ -101,10 +103,10 @@ func CreatePhysicsSystems(world *ecs.World) []ecs.System {
 	return physicsSystems
 }
 
-func CreateClientSystems(world *ecs.World, clientConn *ClientConn) []ecs.System {
+func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerId *ecs.Id) []ecs.System {
 	clientSystems := []ecs.System{
 		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
-			ClientSendUpdate(world, clientConn)
+			ClientSendUpdate(world, sock, *playerId)
 		}},
 	}
 
@@ -113,7 +115,7 @@ func CreateClientSystems(world *ecs.World, clientConn *ClientConn) []ecs.System 
 	return clientSystems
 }
 
-func CreateServerSystems(world *ecs.World, serverConn ServerConn, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) []ecs.System {
+func CreateServerSystems(world *ecs.World, server *Server, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) []ecs.System {
 	serverSystems := []ecs.System{
 		CreatePollNetworkSystem(world, networkChannel),
 	}
@@ -123,11 +125,15 @@ func CreateServerSystems(world *ecs.World, serverConn ServerConn, networkChannel
 
 	serverSystems = append(serverSystems, []ecs.System{
 		ecs.System{"ServerSendUpdate", func(dt time.Duration) {
-			ServerSendUpdate(world, serverConn, deleteList)
+			ServerSendUpdate(world, server, deleteList)
 		}},
 	}...)
 
 	return serverSystems
+}
+
+type LastUpdate struct {
+	Time time.Time
 }
 
 func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldUpdate) ecs.System {
@@ -142,6 +148,7 @@ func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldU
 				for id, compList := range update.WorldData {
 					// log.Println("CompList:", id, compList)
 					ecs.Write(world, id, compList...)
+					ecs.Write(world, id, ecs.C(LastUpdate{time.Now()}))
 
 //TODO - Forcing this to fail: Note: We removed position from sprite with the plan to make an networkPosition be the thing that comes off the network. Then have a system that interps that into the current transform
 

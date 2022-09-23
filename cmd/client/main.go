@@ -20,6 +20,7 @@ import (
 	"github.com/unitoftime/glitch/ui"
 
 	"github.com/unitoftime/mmo"
+	"github.com/unitoftime/mmo/mnet"
 	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/mmo/serdes"
 	"github.com/unitoftime/flow/asset"
@@ -174,24 +175,18 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
 	url := "ws://localhost:8001"
-	clientConn := mmo.NewClientConn(url, networkChannel)
+	sock, err := mnet.NewSocket(url)
+	if err != nil {
+		panic(err)
+	}
 
-	go mmo.ReconnectLoop(world, clientConn)
-	// // Setup Network
-	// url := "ws://localhost:8000"
+	// This is the player's ID, by default we set this to invalid
+	playerId := ecs.InvalidEntity
 
-	// ctx := context.Background()
-	// c, resp, err := websocket.Dial(ctx, url, nil)
-	// check(err)
-
-	// log.Println("Connection Response:", resp)
-
-	// conn := websocket.NetConn(ctx, c, websocket.MessageBinary)
-
-	// clientConn := mmo.ClientConn{
-	// 	Encoder: serdes.New(),
-	// 	Conn: conn,
-	// }
+	// go mnet.ReconnectLoop(world, clientConn, &playerId, networkChannel)
+	go mnet.ReconnectLoop(sock, func(sock *mnet.Socket) error {
+		return mmo.ClientReceive(world, sock, &playerId, networkChannel)
+	})
 
 	pass := glitch.NewRenderPass(shader)
 	tilemapPass := glitch.NewRenderPass(shader)
@@ -240,6 +235,15 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		// ecs.System{"InterpolateSpritePositions", func(dt time.Duration) {
 		// 	render.InterpolateSpritePositions(world, dt)
 		// }},
+		ecs.System{"ManageEntityTimeout", func(dt time.Duration) {
+			timeout := 5 * time.Second
+			now := time.Now()
+			ecs.Map(world, func(id ecs.Id, lastUpdate *mmo.LastUpdate) {
+				if now.Sub(lastUpdate.Time) > timeout {
+					ecs.Delete(world, id)
+				}
+			})
+		}},
 		ecs.System{"BodyToSprite", func(dt time.Duration) {
 			// TODO - would like to create the entire entity at once
 			ecs.Map(world, func(id ecs.Id, body *game.Body) {
@@ -281,16 +285,24 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		}},
 	}
 
-	physicsSystems := mmo.CreateClientSystems(world, clientConn)
+	physicsSystems := mmo.CreateClientSystems(world, sock, &playerId)
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
-			ecs.Map2(world, func(id ecs.Id, _ *mmo.ClientOwned, transform *physics.Transform) {
+			transform, ok := ecs.Read[physics.Transform](world, playerId)
+			if ok {
 				log.Println("Update Camera", transform)
 				// sprite := comp[1].(*render.Sprite)
 				// camera.Position = sprite.Position
 				camera.Position = glitch.Vec2{float32(transform.X), float32(transform.Y)}
-			})
+			}
+
+			// ecs.Map2(world, func(id ecs.Id, _ *mmo.ClientOwned, transform *physics.Transform) {
+			// 	log.Println("Update Camera", transform)
+			// 	// sprite := comp[1].(*render.Sprite)
+			// 	// camera.Position = sprite.Position
+			// 	camera.Position = glitch.Vec2{float32(transform.X), float32(transform.Y)}
+			// })
 
 			camera.Update(win.Bounds())
 		}},
@@ -323,7 +335,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				connectedRect := win.Bounds()
 				connectedRect = connectedRect.Pad(paddingRect)
 				textScale := float32(0.5)
-				if clientConn.Connected.Load() {
+				if sock.Connected.Load() {
 					group.SetColor(glitch.RGBA{0, 1, 0, 1})
 					group.FixedText("Connected", connectedRect, glitch.Vec2{1, 0}, textScale)
 				} else {
@@ -341,5 +353,5 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	ecs.RunGame(inputSystems, physicsSystems, renderSystems, &quit)
 	log.Println("Finished ecs.RunGame")
 	// TODO - I'm not sure if this is the proper way to close because `ClientReceive` is still reading, so closing here will cause that to fail
-	clientConn.Close()
+	sock.Close()
 }
