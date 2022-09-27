@@ -150,7 +150,7 @@ type websocketServer struct {
 
 func (s websocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		OriginPatterns: []string{"localhost:8081"}, // TODO - Refactor this once I have a good deployment format
+		OriginPatterns: []string{"localhost:8081"}, // TODO! - Refactor this once I have a good deployment format
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("Error Accepting Websocket")
@@ -168,7 +168,6 @@ func (s websocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 var userIdCounter uint64
 
 // Handles the websocket connection to a specific client in the room
-// func ServeNetConn(conn net.Conn, serverConn ServerConnection, room *Room) {
 func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 	defer func() {
 		err := conn.Close()
@@ -181,7 +180,7 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 	timeout := make(chan uint8, 1)
 	const StopTimeout uint8 = 0
 	const ContTimeout uint8 = 1
-	const MaxMsgSize int = 4 * 1024 // TODO - use the maximum MTU size
+	const MaxMsgSize int = 4 * 1024 // TODO! - use the maximum MTU size
 
 	// Login player
 	room.mu.Lock()
@@ -198,11 +197,6 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 	sock := mnet.NewConnectedSocket(conn)
 	room.Map[userId] = ClientConnection{sock}
 
-	// clientEncoder := serdes.New()
-	// room.Map[userId] = ClientConnection{
-	// 	conn: conn,
-	// 	encoder: clientEncoder,
-	// }
 	room.mu.Unlock()
 
 	// Cleanup room once they leave
@@ -223,19 +217,16 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 
 	// Send logout message to server
 	defer func() {
-		// TODO - maybe just kick of a goroutine that just continually tries to do this until it succeeds. Or maybe have one worker that reads from a queue or map or something like that
-		// err := serverConn.conn.Send(serdes.ClientLogout{userId})
 		err := serverConn.Send(serdes.ClientLogout{userId})
 		if err != nil {
-			log.Warn().Err(err).Msg("Failed to forward logout message")
+			log.Warn().Err(err).Msg("Failed to send logout message")
 		}
 	}()
 
 	// Read data from client and sends to game server
-	// TODO - TCP doesn't provide framing, so message framing needs to be added
-	// TODO - TCP will send 0 byte messages to indicate closes, websockets sends them without closing
+	// TODO - (When I migrate to TCP) TCP doesn't provide framing, so message framing needs to be added
+	// TODO - (When I migrate to TCP) TCP will send 0 byte messages to indicate closes, websockets sends them without closing
 	go func() {
-		// msg := make([]byte, MaxMsgSize)
 		for {
 			msg, err := sock.Recv()
 			if errors.Is(err, mnet.ErrNetwork) {
@@ -254,31 +245,8 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 			// If the message was empty, just continue to the next one
 			if msg == nil { continue }
 
-			// n, err := conn.Read(msg)
-
-			// if err != nil {
-			// 	log.Println("Read Error:", err)
-			// 	timeout <- StopTimeout // Stop timeout because of a read error
-			// 	return
-			// } else if n <= 0 {
-			// 	continue
-			// }
-
-			// // Tick the timeout watcher so we don't timeout!
-			// timeout <- ContTimeout
-
-			// // log.Println("Unmarshalling")
-			// // TODO - replace with mutateInPlace code?
-			// // Note: Slice off msg buffer based on how many bytes we actually read
-			// fbMessage, err := clientEncoder.Unmarshal(msg[:n])
-			// if err != nil {
-			// 	log.Println("Failed to unmarshal:", err)
-			// }
-			// log.Println("ServeNetConn:", fbMessage)
-
 			switch t := msg.(type) {
 			case serdes.WorldUpdate:
-				// log.Print("Client->Proxy: World Update received")
 				t.UserId = userId
 
 				err := serverConn.Send(t)
@@ -334,18 +302,6 @@ func (r *Room) GetClientConn(userId uint64) *ClientConnection {
 // Read data from game server and send to client
 func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 	for {
-		// msg, err := serverConn.sock.Recv()
-		// if err != nil {
-		// 	log.Println("Read Error:", err)
-		// }
-
-		// fbMessage, err := serverConn.encoder.Unmarshal(msg)
-		// if err != nil {
-		// 	log.Println("Failed to unmarshal:", err)
-		// }
-		// log.Println("HandleGameUpdate:", fbMessage)
-
-		// msg, err := serverConn.conn.Recv()
 		msg, err := serverConn.Recv()
 		if errors.Is(err, mnet.ErrNetwork) {
 			// Handle errors where we should stop (ie connection closed or something)
@@ -357,11 +313,6 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 			continue
 		}
 		if msg == nil { continue }
-		// if err != nil {
-		// 	// TODO - Send back to server "hey this person disconnected!"
-		// 	log.Println(err)
-		// 	continue
-		// }
 
 		switch t := msg.(type) {
 		case serdes.WorldUpdate:
@@ -372,20 +323,8 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 			err := clientConn.sock.Send(t)
 			if err != nil {
 				log.Warn().Err(err).Msg("Error Sending WorldUpdate")
-				// TODO - User disconnected? Remove from map?
+				// TODO! - User disconnected? Remove from map?
 			}
-				// serializedUpdate, err := clientConn.encoder.Marshal(t)
-				// if err != nil {
-				// 	log.Println("Error Marshalling", err)
-				// 	continue
-				// }
-				// log.Println("Proxy WorldUpdate:", t)
-
-				// _, err = clientConn.conn.Write(serializedUpdate)
-				// if err != nil {
-				// 	log.Println("Error Sending:", err)
-				// 	// TODO - User disconnected? Remove from map?
-				// }
 		case serdes.ClientLoginResp:
 			clientConn := r.GetClientConn(t.UserId)
 			if clientConn == nil { continue }
@@ -393,39 +332,15 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 			err := clientConn.sock.Send(serdes.ClientLoginResp{t.UserId, ecs.Id(t.Id)})
 			if err != nil {
 				log.Warn().Err(err).Msg("Error Sending login resp")
-				// TODO - User disconnected? Remove from map?
+				// TODO! - User disconnected? Remove from map?
 			}
 
-			// log.Println("serdes.ClientLoginResp")
-			// r.mu.RLock()
-			// clientConn, ok := r.Map[t.UserId]
-			// r.mu.RUnlock()
-			// if ok {
-			// 	// TODO - replace with mutateInPlace code?
-			// 	t.UserId = 0
-			// 	// serializedMsg, err := serdes.MarshalClientLoginRespMessage(t.UserId, ecs.Id(t.Id))
-			// 	serializedMsg, err := clientConn.encoder.Marshal(serdes.ClientLoginResp{t.UserId, ecs.Id(t.Id)})
-			// 	if err != nil {
-			// 		log.Println("Error Marshalling", err)
-			// 		continue
-			// 	}
-			// 	log.Println("Proxy LoginResp:", t)
-
-			// 	_, err = clientConn.conn.Write(serializedMsg)
-			// 	if err != nil {
-			// 		log.Println("Error Sending:", err)
-			// 		// TODO - User disconnected? Remove from map?
-			// 	}
-			// } else {
-			// 	log.Println("User Disconnected", t.UserId)
-			// 	// TODO - Send back to server "hey this person disconnected!"
-			// }
 		case serdes.ClientLogoutResp:
 			log.Print("Received serdes.ClientLogoutResp")
-			// TODO - should I double check that they've been removed from the map?
-			// TODO - I should send a "logged out successful" message
+			// TODO! - should I double check that they've been removed from the map?
+			// TODO! - I should send a "logged out successful" message
 		default:
-			panic("Unknown message type")
+			panic("Unknown message type") // TODO! - cleanup
 		}
 	}
 

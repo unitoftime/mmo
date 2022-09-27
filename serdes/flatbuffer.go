@@ -47,7 +47,7 @@ func (s *Serdes) FlatbufferMarshal(v any) ([]byte, error) {
 	case ClientLogoutResp:
 		return marshalClientLogoutRespMessage(t), nil
 	}
-	return nil, fmt.Errorf("Unknown Message type %T", v) }
+	return nil, fmt.Errorf("Unknown Message type %T", v)
 }
 
 func (s *Serdes) FlatbufferUnmarshal(dat []byte) (any, error) {

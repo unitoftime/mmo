@@ -186,17 +186,14 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	}
 
 	// This is the player's ID, by default we set this to invalid
-	playerId := ecs.InvalidEntity
+	playerData := mmo.NewPlayerData()
 
-	// go mnet.ReconnectLoop(world, clientConn, &playerId, networkChannel)
 	go mnet.ReconnectLoop(sock, func(sock *mnet.Socket) error {
-		return mmo.ClientReceive(world, sock, &playerId, networkChannel)
+		return mmo.ClientReceive(sock, playerData, networkChannel)
 	})
 
 	pass := glitch.NewRenderPass(shader)
 	tilemapPass := glitch.NewRenderPass(shader)
-
-	// go mmo.ClientReceive(world, clientConn, networkChannel)
 
 	tmap := mmo.LoadGame(world)
 
@@ -218,7 +215,6 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	tmapRender.Batch(tmap)
 
 	// Create people
-	// TODO - move to system that converts like bodytype into sprites
 	manSprites := make([]*glitch.Sprite, game.NumBodyTypes)
 	for i := 0; i < len(manSprites); i++ {
 		manSprites[i], err = spritesheet.Get(fmt.Sprintf("man%d.png", i))
@@ -250,27 +246,13 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			})
 		}},
 		ecs.System{"BodyToSprite", func(dt time.Duration) {
-			// TODO - would like to create the entire entity at once
 			ecs.Map(world, func(id ecs.Id, body *game.Body) {
-
-				// TODO - We should really have a login-response-handling function
-				// sprite := render.Sprite{}
-				// ok := ecs.Read(world, id, &sprite)
 				_, ok := ecs.Read[render.Sprite](world, id)
 				if !ok {
-					ecs.Write(world, id, ecs.C(render.NewSprite(
-						// Position: pixel.ZV, // TODO - just read this from transform
-						// manSprite)))
-						manSprites[int(body.Type)])))
-
-					// TODO - put into a login message
-					ecs.Write(world, id, ecs.C(physics.Input{}))
-					ecs.Write(world, id, ecs.C(render.Keybinds{
-						Up: glitch.KeyW,
-						Down: glitch.KeyS,
-						Left: glitch.KeyA,
-						Right: glitch.KeyD,
-					}))
+					ecs.Write(world, id,
+						ecs.C(render.NewSprite(
+							manSprites[int(body.Type)])),
+					)
 				}
 			})
 		}},
@@ -290,11 +272,11 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		}},
 	}
 
-	physicsSystems := mmo.CreateClientSystems(world, sock, &playerId)
+	physicsSystems := mmo.CreateClientSystems(world, sock, playerData)
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
-			transform, ok := ecs.Read[physics.Transform](world, playerId)
+			transform, ok := ecs.Read[physics.Transform](world, playerData.Id())
 			if ok {
 				// log.Print("Update Camera", transform)
 				// sprite := comp[1].(*render.Sprite)
@@ -357,6 +339,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 
 	ecs.RunGame(inputSystems, physicsSystems, renderSystems, &quit)
 	log.Print("Finished ecs.RunGame")
-	// TODO - I'm not sure if this is the proper way to close because `ClientReceive` is still reading, so closing here will cause that to fail
+
+	// TODO! - I'm not sure if this is the proper way to close because `ClientReceive` is still reading, so closing here will cause that to fail
 	sock.Close()
 }

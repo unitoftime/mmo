@@ -12,14 +12,18 @@ import (
 
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/physics"
+	"github.com/unitoftime/flow/render"
+	"github.com/unitoftime/glitch"
 	"github.com/unitoftime/mmo/serdes"
 	"github.com/unitoftime/mmo/mnet"
+	"github.com/unitoftime/mmo/stat"
 	"github.com/unitoftime/mmo/game"
 )
 
-func ClientSendUpdate(world *ecs.World, clientConn *mnet.Socket, playerId ecs.Id) {
+func ClientSendUpdate(world *ecs.World, clientConn *mnet.Socket, playerData *PlayerData) {
+	playerId := playerData.Id()
 	// if clientConn is closed for some reason, then we won't be able to send
-	// TODO - Is this fast enough?
+	// TODO - With the atomic this fast enough?
 	connected := clientConn.Connected.Load()
 	if !connected { return } // Exit early because we are not connected
 
@@ -53,7 +57,7 @@ func ClientSendUpdate(world *ecs.World, clientConn *mnet.Socket, playerId ecs.Id
 	// })
 }
 
-func ClientReceive(world *ecs.World, sock *mnet.Socket, playerId *ecs.Id, networkChannel chan serdes.WorldUpdate) error {
+func ClientReceive(sock *mnet.Socket, playerData *PlayerData, networkChannel chan serdes.WorldUpdate) error {
 	for {
 		msg, err := sock.Recv()
 		if errors.Is(err, mnet.ErrNetwork) {
@@ -69,16 +73,37 @@ func ClientReceive(world *ecs.World, sock *mnet.Socket, playerId *ecs.Id, networ
 
 		switch t := msg.(type) {
 		case serdes.WorldUpdate:
-			// log.Println(t)
 			networkChannel <- t
 		case serdes.ClientLoginResp:
 			log.Print("serdes.ClientLoginResp", t)
-			// ecs.Write(engine, ecs.Id(t.Id), ClientOwned{})
-			// ecs.Write(engine, ecs.Id(t.Id), Body{})
-			// TODO - is this a hack? Should I be using the networkChannel?
-			// ecs.Write(world, ecs.Id(t.Id), ecs.C(ClientOwned{}), ecs.C(game.Body{}))
-			ecs.Write(world, ecs.Id(t.Id), ecs.C(game.Body{}))
-			*playerId = ecs.Id(t.Id)
+			// TODO this might be needed in the future if I want to write any data on login resp
+			// ecs.Write(world, ecs.Id(t.Id), ecs.C(game.Body{}))
+			// networkChannel <- serdes.WorldUpdate{
+			// 	UserId: t.UserId,
+			// 	WorldData: map[ecs.Id][]ecs.Component{
+			// 		ecs.Id(t.Id): []ecs.Component{
+			// 			ecs.C(game.Body{}),
+			// 		},
+			// 	},
+			// }
+
+			playerData.SetId(t.Id)
+
+			networkChannel <- serdes.WorldUpdate{
+				UserId: t.UserId,
+				WorldData: map[ecs.Id][]ecs.Component{
+					ecs.Id(t.Id): []ecs.Component{
+						ecs.C(physics.Input{}),
+						ecs.C(render.Keybinds{
+							Up: glitch.KeyW,
+							Down: glitch.KeyS,
+							Left: glitch.KeyA,
+							Right: glitch.KeyD,
+						}),
+					},
+				},
+			}
+
 		default:
 			log.Error().Msg("Unknown message type")
 		}
@@ -90,65 +115,6 @@ func ClientReceive(world *ecs.World, sock *mnet.Socket, playerId *ecs.Id, networ
 // --------------------------------------------------------------------------------
 // - Server
 // --------------------------------------------------------------------------------
-// This is the connection from the server to a proxy
-// type ServerConn struct {
-// 	sock *mnet.Socket
-// 	// encoder *serdes.Serdes
-// 	// conn mnet.Conn
-
-// 	proxyId uint64
-// 	loginMap map[uint64]ecs.Id
-// }
-
-// func (c *ServerConn) Send(msg any) error {
-// 	return c.sock.Send(msg)
-// }
-
-// func (c *ServerConn) Recv() (any, error) {
-// 	return c.sock.Recv()
-// }
-
-// func (c *ServerConn) Send(msg any) error {
-// 	ser, err := c.encoder.Marshal(msg)
-// 	if err != nil {
-// 		log.Println("Failed to serialize", err)
-// 	}
-
-// 	// log.Println("ServerSendUpdate:", len(ser))
-// 	_, err = c.conn.Write(ser)
-// 	if err != nil {
-// 		log.Println("Error Sending:", err)
-// 		err = fmt.Errorf("%w: %s", ErrNetwork, err)
-// 		return err
-// 	}
-// 	return nil
-// }
-
-// func (c *ServerConn) Recv() (any, error) {
-// 	// TODO optimize this buffer creation
-// 	const MaxMsgSize int = 4 * 1024
-// 	dat := make([]byte, MaxMsgSize)
-
-// 	n, err := c.conn.Read(dat)
-// 	if err != nil {
-// 		log.Println("Read Error:", err)
-// 		err = fmt.Errorf("%w: %s", ErrNetwork, err)
-// 		return nil, err
-// 	}
-// 	if n <= 0 { return nil, nil } // There was no message, and no error (likely a keepalive)
-
-// 	log.Println("Read bytes", n)
-
-// 	// Note: slice off based on how many bytes we read
-// 	msg, err := c.encoder.Unmarshal(dat[:n])
-// 	if err != nil {
-// 		log.Println("Failed to unmarshal:", err)
-// 		err = fmt.Errorf("%w: %s", ErrSerdes, err)
-// 		return nil, err
-// 	}
-// 	return msg, nil
-// }
-
 type DeleteList struct {
 	mu sync.RWMutex
 	list []ecs.Id
@@ -234,7 +200,6 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 		msg, err := serverConn.Recv()
 		if errors.Is(err, mnet.ErrNetwork) {
 			// Handle errors where we should stop (ie connection closed or something)
-			// TODO - when this triggers, I need to have the eventual code path to: 1. logout all users who were on this proxy. 2. make sure the socket is closed (ie any cleanup)
 			log.Warn().Err(err).Msg("ServeProxyConnection NetworkErr")
 			return err
 		} else if errors.Is(err, mnet.ErrSerdes) {
@@ -247,8 +212,15 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 		// Interpret different messages
 		switch t := msg.(type) {
 		case serdes.WorldUpdate:
-			id := serverConn.loginMap[t.UserId]
-			// TODO - requires client to put their input on spot 0
+			id, ok := serverConn.GetUser(t.UserId)
+			if !ok {
+				log.Error().Uint64(stat.UserId, t.UserId).
+					Msg("Proxy sent update for user that we don't have on the server")
+				// Skip: We can't find the user
+				continue
+			}
+
+			// TODO - requires client to put their input on spot 0. You probably want to change the message serialization type to just send one piece of entity data over.
 			componentList := t.WorldData[id]
 			if len(componentList) <= 0 { break } // Exit if no content
 
@@ -268,21 +240,23 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 		case serdes.ClientLogin:
 			log.Print("Server: serdes.ClientLogin")
 			// Login player
-			// TODO - put into a function
-			// TODO - not thread safe! Concurrent map access
-			// TODO - Refactor networking layer to have an RPC functionality
 			id := world.NewId()
-			ecs.Write(world, id, ecs.C(User{
-				Id: t.UserId,
-				ProxyId: serverConn.proxyId,
-			}),
-				ecs.C(physics.Input{}),
-				ecs.C(game.Body{uint32(rand.Intn(game.NumBodyTypes))}),
-				ecs.C(SpawnPoint()),
-			)
-			// log.Println("Logging in player:", id)
+			trustedLogin := serdes.WorldUpdate{
+				WorldData: map[ecs.Id][]ecs.Component{
+					id: []ecs.Component{
+						ecs.C(User{
+							Id: t.UserId,
+							ProxyId: serverConn.proxyId,
+						}),
+						ecs.C(physics.Input{}),
+						ecs.C(game.Body{uint32(rand.Intn(game.NumBodyTypes))}),
+						ecs.C(SpawnPoint()),
+					},
+				},
+			}
+			networkChannel <- trustedLogin
 
-			serverConn.loginMap[t.UserId] = id
+			serverConn.LoginUser(t.UserId, id)
 
 			resp := serdes.ClientLoginResp{t.UserId, id}
 			err := serverConn.Send(resp)
@@ -291,10 +265,14 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 			}
 		case serdes.ClientLogout:
 			log.Print("Server: serdes.ClientLogout")
-			id := serverConn.loginMap[t.UserId]
+			id, ok := serverConn.GetUser(t.UserId)
+			if !ok {
+				// Skip: User already logged out
+				continue
+			}
 			ecs.Delete(world, id)
 
-			delete(serverConn.loginMap, t.UserId)
+			serverConn.LogoutUser(t.UserId)
 
 			deleteList.Append(id)
 
@@ -313,11 +291,10 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 //--------------------------------------------------------------------------------
 type ServerConn struct {
 	sock *mnet.Socket
-	// encoder *serdes.Serdes
-	// conn mnet.Conn
 
+	mu sync.RWMutex
 	proxyId uint64
-	loginMap map[uint64]ecs.Id
+	loginMap map[uint64]ecs.Id // TODO - this isn't currently being synchronized, it is only used from the server handler function currently
 }
 
 func (c *ServerConn) Send(msg any) error {
@@ -328,17 +305,44 @@ func (c *ServerConn) Recv() (any, error) {
 	return c.sock.Recv()
 }
 
+func (c *ServerConn) LoginUser(userId uint64, ecsId ecs.Id) {
+	c.mu.Lock()
+	c.loginMap[userId] = ecsId
+	c.mu.Unlock()
+}
+
+func (c *ServerConn) LogoutUser(userId uint64) {
+	c.mu.Lock()
+	delete(c.loginMap, userId)
+	c.mu.Unlock()
+}
+
+func (c *ServerConn) GetUser(userId uint64) (ecs.Id, bool) {
+	c.mu.RLock()
+	ret, ok := c.loginMap[userId]
+	c.mu.RUnlock()
+	return ret, ok
+}
+
+// TODO - add more stats
+func (c *ServerConn) GetStats() int {
+	c.mu.RLock()
+	ret := len(c.loginMap)
+	c.mu.RUnlock()
+	return ret
+}
+
 type Server struct {
 	listener net.Listener
 	connections map[uint64]ServerConn // A map of proxyIds to Proxy connections
 	handler func(ServerConn) error
 }
 
-// TODO - use mnet.URL?
+// TODO - use net.URL?
 func NewServer(url string, handler func(ServerConn) error) (*Server, error) {
 	listener, err := net.Listen("tcp", url)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	server := Server{
@@ -346,7 +350,7 @@ func NewServer(url string, handler func(ServerConn) error) (*Server, error) {
 		connections: make(map[uint64]ServerConn),
 		handler: handler,
 	}
-	return &server
+	return &server, nil
 }
 
 
@@ -356,7 +360,8 @@ func (s *Server) Start() {
 		for {
 			time.Sleep(10 * time.Second)
 			for proxyId, proxyConn := range s.connections {
-				log.Print(fmt.Sprintf("Proxy %d - %d active users", proxyId, len(proxyConn.loginMap)))
+				// TODO - race condition here with checking the map length
+				log.Print(fmt.Sprintf("Proxy %d - %d active users", proxyId, proxyConn.GetStats()))
 			}
 		}
 	}()
@@ -375,8 +380,6 @@ func (s *Server) Start() {
 		proxyId := counter
 		serverConn := ServerConn{
 			sock: sock,
-			// encoder: serdes.New(),
-			// conn: conn,
 			proxyId: proxyId,
 			loginMap: make(map[uint64]ecs.Id),
 		}

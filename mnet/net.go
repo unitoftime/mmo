@@ -14,7 +14,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/unitoftime/mmo/serdes"
-	// "github.com/unitoftime/ecs"
 )
 
 var ErrSerdes = errors.New("serdes errror")
@@ -29,15 +28,14 @@ func ReconnectLoop(sock *Socket, handler func(*Socket) error) {
 		err := sock.Dial()
 		if err != nil {
 			log.Warn().Err(err).Msg("Client Websocket Dial Failed")
-			time.Sleep(2 * time.Second) // TODO - reconfigure this before launch. Probably want some random value so everyone isn't reconnecting simultaneously
+			time.Sleep(5 * time.Second) // TODO - Probably want some random value so everyone isn't reconnecting simultaneously
 			continue
 		}
 
 		// Start the handler
-		// err = ClientReceive(world, c, playerId, updateChan)
 		err = handler(sock)
 		if err != nil {
-			log.Warn().Err(err).Msg("ClientReceive handler finished")
+			log.Warn().Err(err).Msg("ReconnectLoop handler finished")
 
 			// TODO - Is this a good idea?
 			// Try to close the connection one last time
@@ -140,12 +138,12 @@ func (s *Socket) Send(msg any) error {
 }
 
 // Reads the next message (blocking) on the connection
-// TODO - Thread safety?
+// TODO! - Thread safety?
 func (s *Socket) Recv() (any, error) {
 	if s.conn == nil {
 		return nil, fmt.Errorf("Socket Closed")
 	}
-	// TODO optimize this buffer creation
+	// TODO! optimize this buffer creation
 	const MaxMsgSize int = 4 * 1024
 	dat := make([]byte, MaxMsgSize)
 

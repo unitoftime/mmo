@@ -3,6 +3,7 @@ package mmo
 import (
 	"time"
 	"math"
+	"sync"
 
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/tile"
@@ -15,6 +16,30 @@ import (
 var seed int64 = 12345
 var mapSize int = 100
 var tileSize int = 16
+
+// This represents global player data on the client
+type PlayerData struct {
+	mu sync.RWMutex
+	id ecs.Id
+}
+func NewPlayerData() *PlayerData {
+	return &PlayerData{
+		id: ecs.InvalidEntity,
+	}
+}
+
+func (p *PlayerData) Id() ecs.Id {
+	p.mu.RLock()
+	ret := p.id
+	p.mu.RUnlock()
+	return ret
+}
+
+func (p *PlayerData) SetId(id ecs.Id) {
+	p.mu.Lock()
+	p.id = id
+	p.mu.Unlock()
+}
 
 func SpawnPoint() physics.Transform {
 	spawnPoint := physics.Transform{
@@ -38,9 +63,6 @@ type User struct {
 	Id uint64
 	ProxyId uint64
 }
-
-// type ClientOwned struct {
-// }
 
 const (
 	GrassTile tile.TileType = iota
@@ -102,10 +124,10 @@ func CreatePhysicsSystems(world *ecs.World) []ecs.System {
 	return physicsSystems
 }
 
-func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerId *ecs.Id) []ecs.System {
+func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *PlayerData) []ecs.System {
 	clientSystems := []ecs.System{
 		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
-			ClientSendUpdate(world, sock, *playerId)
+			ClientSendUpdate(world, sock, playerData)
 		}},
 	}
 
@@ -142,21 +164,13 @@ func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldU
 		for {
 			select {
 			case update := <-networkChannel:
-				// log.Println(update)
-				// ecs.Write(engine, update.Id, update.Component)
 				for id, compList := range update.WorldData {
-					// log.Println("CompList:", id, compList)
+					// TODO! - batch these together
 					ecs.Write(world, id, compList...)
 					ecs.Write(world, id, ecs.C(LastUpdate{time.Now()}))
 
-//TODO - Forcing this to fail: Note: We removed position from sprite with the plan to make an networkPosition be the thing that comes off the network. Then have a system that interps that into the current transform
-
-					// for i := range compList {
-					// 	// fmt.Printf("HERE %T", compList[i])
-					// 	// log.Println(compList[i])
-
-					// 	ecs.Write(engine, id, compList[i])
-					// }
+// TODO - Do I still need interpolation like this?
+// TODO - Forcing this to fail: Note: We removed position from sprite with the plan to make an networkPosition be the thing that comes off the network. Then have a system that interps that into the current transform
 				}
 
 				// Delete all the entities in the deleteList
