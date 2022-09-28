@@ -180,7 +180,6 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 	timeout := make(chan uint8, 1)
 	const StopTimeout uint8 = 0
 	const ContTimeout uint8 = 1
-	const MaxMsgSize int = 4 * 1024 // TODO! - use the maximum MTU size
 
 	// Login player
 	room.mu.Lock()
@@ -208,7 +207,6 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 
 	// Send login message to server
 	log.Debug().Uint64(stat.UserId, userId).Msg("Sending Login Message")
-	// err := serverConn.conn.Send(serdes.ClientLogin{userId})
 	err := serverConn.Send(serdes.ClientLogin{userId})
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to forward login message")
@@ -322,8 +320,8 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 			t.UserId = 0
 			err := clientConn.sock.Send(t)
 			if err != nil {
-				log.Warn().Err(err).Msg("Error Sending WorldUpdate")
-				// TODO! - User disconnected? Remove from map?
+				log.Warn().Err(err).Msg("Error Sending WorldUpdate to user")
+				// TODO - User disconnected? Remove from map? Why is server still sending to them?
 			}
 		case serdes.ClientLoginResp:
 			clientConn := r.GetClientConn(t.UserId)
@@ -331,16 +329,18 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 
 			err := clientConn.sock.Send(serdes.ClientLoginResp{t.UserId, ecs.Id(t.Id)})
 			if err != nil {
-				log.Warn().Err(err).Msg("Error Sending login resp")
-				// TODO! - User disconnected? Remove from map?
+				log.Warn().Err(err).Msg("Error Sending login response to user")
+				// TODO - User disconnected? Remove from map? Why is server still sending to them?
 			}
 
 		case serdes.ClientLogoutResp:
 			log.Print("Received serdes.ClientLogoutResp")
-			// TODO! - should I double check that they've been removed from the map?
-			// TODO! - I should send a "logged out successful" message
+			// Note: When the proxy's client connection handler function exits, it removes the user from the room.
+			// TODO - Do I want to send a message to the user that says "Logout Successful"?
 		default:
-			panic("Unknown message type") // TODO! - cleanup
+			log.Error().
+				Err(fmt.Errorf("Server Sent unknown message type %T", msg)).
+				Msg("HandleGameUpdates")
 		}
 	}
 

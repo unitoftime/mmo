@@ -165,9 +165,8 @@ func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldU
 			select {
 			case update := <-networkChannel:
 				for id, compList := range update.WorldData {
-					// TODO! - batch these together
+					compList = append(compList, ecs.C(LastUpdate{time.Now()}))
 					ecs.Write(world, id, compList...)
-					ecs.Write(world, id, ecs.C(LastUpdate{time.Now()}))
 
 // TODO - Do I still need interpolation like this?
 // TODO - Forcing this to fail: Note: We removed position from sprite with the plan to make an networkPosition be the thing that comes off the network. Then have a system that interps that into the current transform

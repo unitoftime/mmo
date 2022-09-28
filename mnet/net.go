@@ -6,6 +6,7 @@ import (
 	"time"
 	"net"
 	"net/url"
+	"sync"
 	"sync/atomic"
 	"context"
 
@@ -15,6 +16,11 @@ import (
 
 	"github.com/unitoftime/mmo/serdes"
 )
+
+// TODO - Ensure sent messages remain under this
+// Calculation: 1460 Byte = 1500 Byte - 20 Byte IP Header - 20 Byte TCP Header
+const MaxMsgSize = 1460 // bytes
+const MaxRecvMsgSize = 4 * 1024 // 4 KB // TODO - this is arbitrary
 
 var ErrSerdes = errors.New("serdes errror")
 var ErrNetwork = errors.New("network error")
@@ -61,10 +67,14 @@ type Socket struct {
 	encoder *serdes.Serdes // The encoder to use for serialization
 	conn net.Conn          // The underlying network connection to send and receive on
 
+	recvMut sync.Mutex // The mutex for multiple threads reading at the same time
+	recvBuf []byte     // The buffer that reads are buffered into
+
 	Closed atomic.Bool // Used to indicate that the user has requested to close this ClientConn
 	Connected atomic.Bool // Used to indicate that the underlying connection is still active
 }
 
+// TODO - Combine NewSocket and NewConnectedSocket
 func NewSocket(network string) (*Socket, error) {
 	u, err := url.Parse(network)
 	if err != nil {
@@ -76,6 +86,7 @@ func NewSocket(network string) (*Socket, error) {
 		host: u.Host,
 		url: network,
 		encoder: serdes.New(),
+		recvBuf: make([]byte, MaxRecvMsgSize),
 	}
 	return &sock, nil
 }
@@ -84,6 +95,7 @@ func NewConnectedSocket(conn net.Conn) *Socket {
 	sock := Socket{
 		conn: conn,
 		encoder: serdes.New(),
+		recvBuf: make([]byte, MaxRecvMsgSize),
 	}
 	return &sock
 }
@@ -138,16 +150,15 @@ func (s *Socket) Send(msg any) error {
 }
 
 // Reads the next message (blocking) on the connection
-// TODO! - Thread safety?
 func (s *Socket) Recv() (any, error) {
 	if s.conn == nil {
 		return nil, fmt.Errorf("Socket Closed")
 	}
-	// TODO! optimize this buffer creation
-	const MaxMsgSize int = 4 * 1024
-	dat := make([]byte, MaxMsgSize)
 
-	n, err := s.conn.Read(dat)
+	s.recvMut.Lock()
+	defer s.recvMut.Unlock()
+
+	n, err := s.conn.Read(s.recvBuf)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to receive")
 		err = fmt.Errorf("%w: %s", ErrNetwork, err)
@@ -158,7 +169,7 @@ func (s *Socket) Recv() (any, error) {
 	// log.Print("Read bytes", n)
 
 	// Note: slice off based on how many bytes we read
-	msg, err := s.encoder.Unmarshal(dat[:n])
+	msg, err := s.encoder.Unmarshal(s.recvBuf[:n])
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to unmarshal")
 		err = fmt.Errorf("%w: %s", ErrSerdes, err)

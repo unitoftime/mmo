@@ -340,6 +340,6 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	ecs.RunGame(inputSystems, physicsSystems, renderSystems, &quit)
 	log.Print("Finished ecs.RunGame")
 
-	// TODO! - I'm not sure if this is the proper way to close because `ClientReceive` is still reading, so closing here will cause that to fail
+	// TODO - I'm not sure if this is the proper way to close because `ClientReceive` is still reading, so closing here will cause that to fail
 	sock.Close()
 }
