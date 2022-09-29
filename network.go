@@ -192,7 +192,7 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 	}
 }
 
-func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) error {
+func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) error {
 	log.Print("Server: ServeProxyConnection")
 
 	// Read data
@@ -270,7 +270,11 @@ func ServeProxyConnection(serverConn ServerConn, world *ecs.World, networkChanne
 				// Skip: User already logged out
 				continue
 			}
-			ecs.Delete(world, id)
+			trustedLogout := serdes.WorldUpdate{
+				UserId: t.UserId,
+				Delete: []ecs.Id{id},
+			}
+			networkChannel <- trustedLogout
 
 			serverConn.LogoutUser(t.UserId)
 
@@ -294,7 +298,7 @@ type ServerConn struct {
 
 	mu sync.RWMutex
 	proxyId uint64
-	loginMap map[uint64]ecs.Id // TODO - this isn't currently being synchronized, it is only used from the server handler function currently
+	loginMap map[uint64]ecs.Id
 }
 
 func (c *ServerConn) Send(msg any) error {
@@ -307,39 +311,41 @@ func (c *ServerConn) Recv() (any, error) {
 
 func (c *ServerConn) LoginUser(userId uint64, ecsId ecs.Id) {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.loginMap[userId] = ecsId
-	c.mu.Unlock()
 }
 
 func (c *ServerConn) LogoutUser(userId uint64) {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	delete(c.loginMap, userId)
-	c.mu.Unlock()
 }
 
 func (c *ServerConn) GetUser(userId uint64) (ecs.Id, bool) {
 	c.mu.RLock()
+	defer c.mu.RUnlock()
 	ret, ok := c.loginMap[userId]
-	c.mu.RUnlock()
 	return ret, ok
 }
 
 // TODO - add more stats
 func (c *ServerConn) GetStats() int {
 	c.mu.RLock()
+	defer c.mu.RUnlock()
 	ret := len(c.loginMap)
-	c.mu.RUnlock()
 	return ret
 }
 
 type Server struct {
 	listener net.Listener
-	connections map[uint64]ServerConn // A map of proxyIds to Proxy connections
-	handler func(ServerConn) error
+	handler func(*ServerConn) error
+
+ 	connectionsMut sync.RWMutex // Sync for connections map
+	connections map[uint64]*ServerConn // A map of proxyIds to Proxy connections
 }
 
 // TODO - use net.URL?
-func NewServer(url string, handler func(ServerConn) error) (*Server, error) {
+func NewServer(url string, handler func(*ServerConn) error) (*Server, error) {
 	listener, err := net.Listen("tcp", url)
 	if err != nil {
 		return nil, err
@@ -347,7 +353,7 @@ func NewServer(url string, handler func(ServerConn) error) (*Server, error) {
 
 	server := Server{
 		listener: listener,
-		connections: make(map[uint64]ServerConn),
+		connections: make(map[uint64]*ServerConn),
 		handler: handler,
 	}
 	return &server, nil
@@ -359,10 +365,12 @@ func (s *Server) Start() {
 	go func() {
 		for {
 			time.Sleep(10 * time.Second)
+			s.connectionsMut.RLock()
 			for proxyId, proxyConn := range s.connections {
-				// TODO - race condition here with checking the map length
-				log.Print(fmt.Sprintf("Proxy %d - %d active users", proxyId, proxyConn.GetStats()))
+				numActive := proxyConn.GetStats()
+				log.Print(fmt.Sprintf("Proxy %d - %d active users", proxyId, numActive))
 			}
+			s.connectionsMut.RUnlock()
 		}
 	}()
 
@@ -378,7 +386,7 @@ func (s *Server) Start() {
 		sock := mnet.NewConnectedSocket(conn)
 
 		proxyId := counter
-		serverConn := ServerConn{
+		serverConn := &ServerConn{
 			sock: sock,
 			proxyId: proxyId,
 			loginMap: make(map[uint64]ecs.Id),
@@ -399,16 +407,23 @@ func (s *Server) Start() {
 	}
 }
 
-func (s *Server) GetProxy(proxyId uint64) (ServerConn, bool) {
+func (s *Server) GetProxy(proxyId uint64) (*ServerConn, bool) {
+ 	s.connectionsMut.RLock()
+	defer s.connectionsMut.RUnlock()
+
 	c, ok := s.connections[proxyId]
 	return c, ok
 }
 
-func (s *Server) AddProxy(proxyId uint64, conn ServerConn) {
+func (s *Server) AddProxy(proxyId uint64, conn *ServerConn) {
+	s.connectionsMut.Lock()
+	defer s.connectionsMut.Unlock()
 	s.connections[proxyId] = conn
 }
 
 func (s *Server) RemoveProxy(proxyId uint64) {
+	s.connectionsMut.Lock()
+	defer s.connectionsMut.Unlock()
 	delete(s.connections, proxyId)
 }
 
