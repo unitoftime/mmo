@@ -134,6 +134,10 @@ func (s *Socket) Close() {
 
 // Sends the message through the connection
 func (s *Socket) Send(msg any) error {
+	if s.conn == nil {
+		return fmt.Errorf("Socket Closed")
+	}
+
 	ser, err := s.encoder.Marshal(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to serialize")
