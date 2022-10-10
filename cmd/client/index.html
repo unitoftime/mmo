@@ -1,7 +1,16 @@
 <html>
 <head>
 	<meta charset="utf-8">
-	<title>WASM Basic Triangle</title>
+	<title>MMO Client</title>
+
+    <style>
+        #gocanvas {
+			position:fixed;
+			width: 100%;
+			height:100%;
+			top:0;right:0;bottom:0;left:0;
+		}
+    </style>
     <script src="wasm_exec.js"></script>
     <script>
         if (!WebAssembly.instantiateStreaming) { // polyfill
@@ -12,7 +21,7 @@
         }
         const go = new Go();
         let mod, inst;
-        WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+        WebAssembly.instantiateStreaming(fetch("mmo.wasm"), go.importObject).then((result) => {
             mod = result.module;
             inst = result.instance;
             run().then((result) => {
@@ -34,15 +43,6 @@
 </body>
 
 <footer>
-    <style>
-        #gocanvas {
-			position:fixed;
-			opacity:0.9;
-			width: 100%;
-			height:100%;
-			top:0;right:0;bottom:0;left:0;
-		}
-    </style>
 </footer>
 
 </html>

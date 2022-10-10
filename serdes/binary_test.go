@@ -17,7 +17,7 @@ func TestBinaryEncoding(t *testing.T) {
 		dat, err := MarshalBinary(ClientLogin{0xAEAE})
 		if err != nil { panic(err) }
 
-		fmt.Printf("%x\n", dat)
+		fmt.Printf("ClientLogin: %x\n", dat)
 
 		v, err := UnmarshalBinary(dat)
 		if err != nil { panic(err) }

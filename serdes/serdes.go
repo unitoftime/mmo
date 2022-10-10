@@ -61,7 +61,7 @@ type Serdes struct {
 func New() *Serdes {
 	var encBuf, decBuf bytes.Buffer
 	return &Serdes{
-		Method: "binary",
+		Method: "binary", // Note - I think when you change this it'll break everything but the framed ones
 
 		GobEncoder: gob.NewEncoder(&encBuf),
 		EncBuf: &encBuf,

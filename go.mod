@@ -24,6 +24,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/ojrac/opensimplex-go v1.0.2 // indirect
+	github.com/smallnest/goframe v1.0.0 // indirect
 	github.com/ungerik/go3d v0.0.0-20220309204530-55ced4bcb334 // indirect
 	github.com/unitoftime/gl v0.0.0-20220818121237-9415942164ed // indirect
 	github.com/unitoftime/glfw v0.0.0-20220818121319-cf735857a346 // indirect

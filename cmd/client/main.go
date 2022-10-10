@@ -22,6 +22,7 @@ import (
 	"github.com/unitoftime/glitch/ui"
 
 	"github.com/unitoftime/mmo"
+	"github.com/unitoftime/mmo/client"
 	"github.com/unitoftime/mmo/mnet"
 	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/mmo/serdes"
@@ -31,8 +32,13 @@ import (
 	"github.com/unitoftime/flow/tile"
 )
 
-//go:embed packed.json packed.png
+//go:embed packed.json packed.png config.yaml
 var fs embed.FS
+
+type Config struct {
+	Uri string
+	Test bool
+}
 
 func check(err error) {
 	if err != nil {
@@ -42,6 +48,7 @@ func check(err error) {
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+var skipMenu = flag.Bool("skip", false, "skip the login menu (for testing)")
 
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
@@ -94,13 +101,20 @@ func launch() {
 	spritesheet, err := load.Spritesheet("packed.json", false)
 	check(err)
 
+	atlas, err := glitch.DefaultAtlas()
+	if err != nil { panic(err) }
+
 	shader, err := glitch.NewShader(shaders.SpriteShader)
 	if err != nil { panic(err) }
 
-	runMenu(win, load, spritesheet, shader)
+	if skipMenu == nil || (*skipMenu == false) {
+		runMenu(win, load, spritesheet, shader, atlas)
+	} else {
+		runGame(win, load, spritesheet, shader, atlas)
+	}
 }
 
-func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spritesheet, shader *glitch.Shader) {
+func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spritesheet, shader *glitch.Shader, atlas *glitch.Atlas) {
 	panelSprite, err := spritesheet.GetNinePanel("panel.png", glitch.R(2, 2, 2, 2))
 	if err != nil { panic(err) }
 	buttonSprite, err := spritesheet.GetNinePanel("button.png", glitch.R(1, 1, 1, 1))
@@ -114,9 +128,6 @@ func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	buttonSprite.Scale = 8
 	buttonHoverSprite.Scale = 8
 	buttonPressSprite.Scale = 8
-
-	atlas, err := glitch.DefaultAtlas()
-	if err != nil { panic(err) }
 
 	camera := glitch.NewCameraOrtho()
 	camera.SetOrtho2D(win.Bounds())
@@ -179,17 +190,23 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	world := ecs.NewWorld()
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
-	url := "ws://localhost:8001"
-	sock, err := mnet.NewSocket(url)
+	config := Config{}
+	err := load.Yaml("config.yaml", &config)
+	if err != nil { panic(err) }
+	log.Print(config)
+
+	url := config.Uri
+	sock, err := mnet.NewSocket(url, config.Test)
 	if err != nil {
 		panic(err)
 	}
+	// sock.SkipVerify = config.Test
 
 	// This is the player's ID, by default we set this to invalid
 	playerData := mmo.NewPlayerData()
 
 	go mnet.ReconnectLoop(sock, func(sock *mnet.Socket) error {
-		return mmo.ClientReceive(sock, playerData, networkChannel)
+		return client.ClientReceive(sock, playerData, networkChannel)
 	})
 
 	pass := glitch.NewRenderPass(shader)
@@ -272,7 +289,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		}},
 	}
 
-	physicsSystems := mmo.CreateClientSystems(world, sock, playerData)
+	physicsSystems := client.CreateClientSystems(world, sock, playerData)
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {

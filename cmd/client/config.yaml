@@ -1,0 +1,5 @@
+uri: "wss://mmo.unit.dev:443"
+test: false
+
+#uri: "wss://localhost:7777"
+#test: true

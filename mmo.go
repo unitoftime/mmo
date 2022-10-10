@@ -10,7 +10,6 @@ import (
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/pgen"
 	"github.com/unitoftime/mmo/serdes"
-	"github.com/unitoftime/mmo/mnet"
 )
 
 var seed int64 = 12345
@@ -122,18 +121,6 @@ func CreatePhysicsSystems(world *ecs.World) []ecs.System {
 		}},
 	}
 	return physicsSystems
-}
-
-func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *PlayerData) []ecs.System {
-	clientSystems := []ecs.System{
-		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
-			ClientSendUpdate(world, sock, playerData)
-		}},
-	}
-
-	physicsSystems := CreatePhysicsSystems(world)
-	clientSystems = append(clientSystems, physicsSystems...)
-	return clientSystems
 }
 
 func CreateServerSystems(world *ecs.World, server *Server, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) []ecs.System {

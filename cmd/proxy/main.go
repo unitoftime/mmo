@@ -5,11 +5,16 @@ import (
 	"os"
 	"os/signal"
 	"net/http"
+	"crypto/tls"
 	"sync"
 	"net"
 	"time"
 	"context"
 	"errors"
+	"embed"
+	"io/ioutil"
+
+	"gopkg.in/yaml.v3"
 
 	"nhooyr.io/websocket"
 
@@ -20,52 +25,48 @@ import (
 	"github.com/unitoftime/mmo/serdes"
 	"github.com/unitoftime/mmo/mnet"
 	"github.com/unitoftime/ecs"
-	// "github.com/unitoftime/mmo"
 )
+
+//go:embed config.yaml
+var fs embed.FS
+
+type Config struct {
+	Server string
+	KeyFile string
+	CertFile string
+	Test bool
+}
+func LoadConfig() (*Config, error) {
+	file, err := fs.Open("config.yaml")
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	yamlData, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+
+	config := &Config{}
+	err = yaml.Unmarshal(yamlData, config)
+	return config, err
+}
+
 
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	url := "tcp://127.0.0.1:9000"
+	config, err := LoadConfig()
+	if err != nil { panic(err) }
 
-	// sock, err := pair.NewSocket()
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// for {
-	// 	err = sock.Dial(url)
-	// 	if err != nil {
-	// 		log.Println("Failed to dial, retrying...")
-	// 		time.Sleep(10 * time.Second)
-	// 		continue
-	// 	}
-
-	// 	break // If we get here, then we've successfully dialed
-	// }
-
-	// conn, err := mnet.NewSocket(url)
-	// if err != nil { panic(err) }
-
-	// for {
-	// 	err := conn.Dial()
-	// 	if err != nil {
-	// 		log.Println("Failed to dial, retrying...")
-	// 		time.Sleep(10 * time.Second)
-	// 		continue
-	// 	}
-	// 	break
-	// }
-
-	// serverConn := ServerConnection{
-	// 	encoder: serdes.New(),
-	// 	conn: conn,
-	// }
+	// url := "tcp://127.0.0.1:9000"
+	url := config.Server
 
 	room := NewRoom()
 
-	sock, err := mnet.NewSocket(url)
+	sock, err := mnet.NewSocket(url, config.Test)
 	if err != nil {
 		panic(err)
 	}
@@ -88,7 +89,31 @@ func main() {
 	})
 	// go mmo.ReconnectLoop(world, clientConn, &playerId, networkChannel)
 
-	listener, err := net.Listen("tcp", ":8001")
+	// HTTP Version
+	// listener, err := net.Listen("tcp", ":443")
+
+	// HTTPS Version
+	certPem, err := os.ReadFile(config.CertFile)
+	if err != nil {
+		panic(err)
+	}
+	keyPem, err := os.ReadFile(config.KeyFile)
+	if err != nil {
+		panic(err)
+	}
+	cert, err := tls.X509KeyPair(certPem, keyPem)
+	if err != nil {
+		panic(err)
+	}
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+
+	hostname := ":443"
+	if config.Test {
+		hostname = "localhost:7777"
+	}
+	listener, err := tls.Listen("tcp", hostname, tlsConfig)
 	if err != nil {
 		panic(err)
 	}
@@ -96,6 +121,7 @@ func main() {
 	// go room.HandleGameUpdates(serverConn)
 
 	s := &http.Server{
+		TLSConfig: tlsConfig,
 		Handler: websocketServer{
 			serverConn: sock,
 			room: room,
@@ -150,7 +176,7 @@ type websocketServer struct {
 
 func (s websocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		OriginPatterns: []string{"localhost:8081"}, // TODO! - Refactor this once I have a good deployment format
+		OriginPatterns: []string{"localhost:8081", "mmo.unit.dev", "unit.dev", "www.unit.dev"},
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("Error Accepting Websocket")
@@ -215,10 +241,7 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 
 	// Send logout message to server
 	defer func() {
-		err := serverConn.Send(serdes.ClientLogout{userId})
-		if err != nil {
-			log.Warn().Err(err).Msg("Failed to send logout message")
-		}
+		sendUserLogoutToServer(serverConn, userId)
 	}()
 
 	// Read data from client and sends to game server
@@ -312,12 +335,18 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 		}
 		if msg == nil { continue }
 
+		// log.Printf("GameUpdate: %v", msg)
+
 		switch t := msg.(type) {
 		case serdes.WorldUpdate:
 			clientConn := r.GetClientConn(t.UserId)
-			if clientConn == nil { continue }
+			if clientConn == nil {
+				// TODO - minor hack: Just remind server that they're disconnected
+				sendUserLogoutToServer(serverConn, t.UserId)
+				continue
+			}
 
-			t.UserId = 0
+			t.UserId = 0 // Clear userId (clients don't need to know user IDs)
 			err := clientConn.sock.Send(t)
 			if err != nil {
 				log.Warn().Err(err).Msg("Error Sending WorldUpdate to user")
@@ -345,4 +374,13 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 	}
 
 	return nil
+}
+
+func sendUserLogoutToServer(sock *mnet.Socket, userId uint64) {
+	err := sock.Send(serdes.ClientLogout{userId})
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to send logout message")
+		panic(err)
+	}
+	log.Printf("SendUserLogoutToServer: %d", userId)
 }

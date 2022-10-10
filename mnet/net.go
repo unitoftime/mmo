@@ -6,6 +6,8 @@ import (
 	"time"
 	"net"
 	"net/url"
+	// "net/http"
+	// "crypto/tls"
 	"sync"
 	"sync/atomic"
 	"context"
@@ -67,15 +69,19 @@ type Socket struct {
 	encoder *serdes.Serdes // The encoder to use for serialization
 	conn net.Conn          // The underlying network connection to send and receive on
 
+	// Note: sendMut I think is needed now that I'm using goframe
+	sendMut sync.Mutex // The mutex for multiple threads writing at the same time
 	recvMut sync.Mutex // The mutex for multiple threads reading at the same time
 	recvBuf []byte     // The buffer that reads are buffered into
 
 	Closed atomic.Bool // Used to indicate that the user has requested to close this ClientConn
 	Connected atomic.Bool // Used to indicate that the underlying connection is still active
+
+	test bool
 }
 
 // TODO - Combine NewSocket and NewConnectedSocket
-func NewSocket(network string) (*Socket, error) {
+func NewSocket(network string, test bool) (*Socket, error) {
 	u, err := url.Parse(network)
 	if err != nil {
 		return nil, err
@@ -87,13 +93,16 @@ func NewSocket(network string) (*Socket, error) {
 		url: network,
 		encoder: serdes.New(),
 		recvBuf: make([]byte, MaxRecvMsgSize),
+		test: test,
 	}
 	return &sock, nil
 }
 
 func NewConnectedSocket(conn net.Conn) *Socket {
 	sock := Socket{
-		conn: conn,
+		// Create a Framed connection and set it to our connection
+		// conn: NewFrameConn(conn),
+		conn: conn, // TODO - need to frame when doing TCP and not frame when doing WS. How to handle? Maybe move server abstraction over or something?
 		encoder: serdes.New(),
 		recvBuf: make([]byte, MaxRecvMsgSize),
 	}
@@ -103,12 +112,26 @@ func NewConnectedSocket(conn net.Conn) *Socket {
 func (s *Socket) Dial() error {
 	log.Print("Dialing", s.url)
 	// Handle websockets
-	if s.scheme == "ws" {
+	if s.scheme == "ws" || s.scheme == "wss" {
+		// // TODO - Do this for local testing (Right now I'm doing insecure skip verify)
+		// Ref: https://github.com/jcbsmpsn/golang-https-example
+		// cert, err := os.ReadFile("cert.pem")
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// caCertPool := x509.NewCertPool()
+		// caCertPool.AppendCertsFromPEM(caCert)
+
+		// ctx := context.Background()
+		// wsConn, _, err := websocket.Dial(ctx, s.url, nil)
 		ctx := context.Background()
-		wsConn, _, err := websocket.Dial(ctx, s.url, nil)
+		wsConn, err := dialWs(ctx, s.url)
+
+
 		// log.Println("Connection Response:", resp)
 		if err != nil { return err }
 
+		// Note: This connection is automagically framed by websockets
 		s.conn = websocket.NetConn(ctx, wsConn, websocket.MessageBinary)
 		s.Connected.Store(true)
 		return nil
@@ -116,7 +139,8 @@ func (s *Socket) Dial() error {
 		conn, err := net.Dial("tcp", s.host)
 		if err != nil { return err }
 
-		s.conn = conn
+		// Create a Framed connection and set it to our connection
+		s.conn = NewFrameConn(conn)
 		s.Connected.Store(true)
 		return nil
 	}
@@ -143,16 +167,17 @@ func (s *Socket) Send(msg any) error {
 		log.Error().Err(err).Msg("Failed to serialize")
 	}
 
+	s.sendMut.Lock()
+	defer s.sendMut.Unlock()
+
 	// log.Println("ClientSendUpdate:", len(ser))
 	_, err = s.conn.Write(ser)
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to send")
 		err = fmt.Errorf("%w: %s", ErrNetwork, err)
 		return err
 	}
 	return nil
 }
-
 // Reads the next message (blocking) on the connection
 func (s *Socket) Recv() (any, error) {
 	if s.conn == nil {
@@ -170,7 +195,9 @@ func (s *Socket) Recv() (any, error) {
 	}
 	if n <= 0 { return nil, nil } // There was no message, and no error (likely a keepalive)
 
-	// log.Print("Read bytes", n)
+	// log.Print("Read bytes: ", n)
+//	log.Print("Data: ", s.recvBuf)
+	// log.Print("Data: ", s.recvBuf[:n])
 
 	// Note: slice off based on how many bytes we read
 	msg, err := s.encoder.Unmarshal(s.recvBuf[:n])
