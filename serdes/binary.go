@@ -3,7 +3,7 @@ package serdes
 import (
 	"fmt"
 
-	"github.com/kelindar/binary"
+	"github.com/unitoftime/binary"
 
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/physics"

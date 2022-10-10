@@ -3,12 +3,14 @@ module github.com/unitoftime/mmo
 go 1.19
 
 require (
-	github.com/google/flatbuffers v22.9.24+incompatible
-	github.com/kelindar/binary v1.0.17
+	github.com/google/flatbuffers v22.9.29+incompatible
 	github.com/rs/zerolog v1.28.0
+	github.com/smallnest/goframe v1.0.0
+	github.com/unitoftime/binary v1.0.20
 	github.com/unitoftime/ecs v0.0.0-20220916124912-0589184b5397
-	github.com/unitoftime/flow v0.0.0-20220625130848-c43721fe2578
-	github.com/unitoftime/glitch v0.0.0-20220923001203-498d875c7bea
+	github.com/unitoftime/flow v0.0.0-20221010144618-c42ada0354b8
+	github.com/unitoftime/glitch v0.0.0-20221010144550-97cf1b8051fd
+	gopkg.in/yaml.v3 v3.0.1
 	nhooyr.io/websocket v1.8.7
 )
 
@@ -24,13 +26,12 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/ojrac/opensimplex-go v1.0.2 // indirect
-	github.com/smallnest/goframe v1.0.0 // indirect
 	github.com/ungerik/go3d v0.0.0-20220309204530-55ced4bcb334 // indirect
-	github.com/unitoftime/gl v0.0.0-20220818121237-9415942164ed // indirect
-	github.com/unitoftime/glfw v0.0.0-20220818121319-cf735857a346 // indirect
+	github.com/unitoftime/gl v0.0.0-20221010144157-ddeda43df375 // indirect
+	github.com/unitoftime/glfw v0.0.0-20221010144402-edf1236838eb // indirect
 	github.com/unitoftime/packer v0.0.0-20220105185326-f541e031de11 // indirect
 	github.com/zyedidia/generic v1.1.0 // indirect
 	golang.org/x/image v0.0.0-20220902085622-e7cb96979f69 // indirect
-	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec // indirect
-	honnef.co/go/js/dom v0.0.0-20210725211120-f030747120f2 // indirect
+	golang.org/x/sys v0.0.0-20221006211917-84dc82d7e875 // indirect
+	honnef.co/go/js/dom v0.0.0-20221001195520-26252dedbe70 // indirect
 )
