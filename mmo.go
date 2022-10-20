@@ -5,10 +5,13 @@ import (
 	"math"
 	"sync"
 
+	// "github.com/rs/zerolog/log"
+
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/tile"
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/pgen"
+	// "github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/mmo/serdes"
 )
 
@@ -20,6 +23,7 @@ var tileSize int = 16
 type PlayerData struct {
 	mu sync.RWMutex
 	id ecs.Id
+	lastMessage string
 }
 func NewPlayerData() *PlayerData {
 	return &PlayerData{
@@ -39,6 +43,28 @@ func (p *PlayerData) SetId(id ecs.Id) {
 	p.id = id
 	p.mu.Unlock()
 }
+
+// Returns the message as sent to the server
+// TODO - if the player sends another message fast enough, it could blank out their first message
+// func (p *PlayerData) SendMessage(msg string) string {
+// 	msg = serdes.FilterChat(msg)
+// 	p.lastMessage = msg
+// 	return msg
+// }
+
+// // Returns the last message and clears the last message buffer, returns nil if no new message
+// func (p *PlayerData) GetLastMessage() *game.ChatMessage {
+// 	if p.lastMessage == "" {
+// 		return nil
+// 	}
+
+// 	msg := p.lastMessage
+// 	p.lastMessage = ""
+// 	return &game.ChatMessage{
+// 		// Username: nil, // TODO - return username?
+// 		Message: msg,
+// 	}
+// }
 
 func SpawnPoint() physics.Transform {
 	spawnPoint := physics.Transform{

@@ -64,12 +64,18 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 		Delete: dListCopy,
 	}
 
+	// TODO - [optional ecs feature] speech should be optional!!!!
+	// TODO - When you do SOI code, and generate messages on a per player basis. You should also not include the speech bubble that the player just sent.
 	// Add relevant data to the world update
 	{
-		ecs.Map2(world, func(id ecs.Id, transform *physics.Transform, body *game.Body) {
+		ecs.Map3(world, func(id ecs.Id, transform *physics.Transform, body *game.Body, speech *game.Speech) {
 			compList := []ecs.Component{
 				ecs.C(*transform),
 				ecs.C(*body),
+			}
+
+			if speech.HandleSent() {
+				compList = append(compList, ecs.C(*speech))
 			}
 			update.WorldData[id] = compList
 		})
@@ -131,14 +137,29 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 			componentList := t.WorldData[id]
 			if len(componentList) <= 0 { break } // Exit if no content
 
-			inputBox, ok := componentList[0].(ecs.CompBox[physics.Input]) // TODO - should id be replaced with 0?
+			compSlice := make([]ecs.Component, 0)
+			// TODO - these should be in a loop. can't guarantee each component slot
+			inputBox, ok := componentList[0].(ecs.CompBox[physics.Input])
 			if !ok { continue }
 			input := inputBox.Get()
+			compSlice = append(compSlice, ecs.C(input))
+
+			if len(componentList) > 1 {
+				speechBox, ok := componentList[1].(ecs.CompBox[game.Speech])
+				if !ok { continue }
+				speech := speechBox.Get()
+				compSlice = append(compSlice, ecs.C(speech))
+			}
+
+			// for i := range t.Messages {
+			// 	t.Messages[i].EcsId = id
+			// }
 
 			trustedUpdate := serdes.WorldUpdate{
 				WorldData: map[ecs.Id][]ecs.Component{
-					id: []ecs.Component{ecs.C(input)},
+					id: compSlice,
 				},
+				// Messages: t.Messages,
 			}
 			// log.Print("TrustedUpdate:", trustedUpdate)
 
@@ -157,6 +178,7 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 						}),
 						ecs.C(physics.Input{}),
 						ecs.C(game.Body{uint32(rand.Intn(game.NumBodyTypes))}),
+						ecs.C(game.Speech{}),
 						ecs.C(SpawnPoint()),
 					},
 				},
@@ -334,4 +356,3 @@ func (s *Server) RemoveProxy(proxyId uint64) {
 	defer s.connectionsMut.Unlock()
 	delete(s.connections, proxyId)
 }
-

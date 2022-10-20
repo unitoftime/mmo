@@ -123,6 +123,7 @@ const (
 	PhysicsTransform ComponentType = iota
 	PhysicsInput
 	GameBody
+	GameSpeech
 	// TODO - etc...
 )
 
@@ -148,8 +149,12 @@ func NewBinaryComponent(v any) (BinaryComponent, error) {
 		header = GameBody
 		cData, err = binary.Marshal(c.Get())
 		if err != nil { return BinaryComponent{}, err }
+	case ecs.CompBox[game.Speech]:
+		header = GameSpeech
+		cData, err = binary.Marshal(c.Get())
+		if err != nil { return BinaryComponent{}, err }
 	default:
-		return BinaryComponent{}, fmt.Errorf("Unknown component %t", c)
+		return BinaryComponent{}, fmt.Errorf("Unknown component %T", c)
 	}
 
 	comp := BinaryComponent{
@@ -175,6 +180,11 @@ func (b *BinaryComponent) ToNormal() (ecs.Component, error) {
 		err := binary.Unmarshal(b.Payload, &v)
 		if err != nil { return nil, err }
 		return ecs.C(v), nil
+	case GameSpeech:
+		v := game.Speech{}
+		err := binary.Unmarshal(b.Payload, &v)
+		if err != nil { return nil, err }
+		return ecs.C(v), nil
 	}
 
 	return nil, fmt.Errorf("Unknown Message header %v", b)
@@ -185,6 +195,7 @@ type BinWorldUpdate struct {
 	UserId uint64
 	WorldData map[uint32][]BinaryComponent
 	Delete []ecs.Id
+	// Messages []ChatMessage
 }
 
 func (w WorldUpdate) MarshalBinary() ([]byte, error) {
@@ -193,6 +204,7 @@ func (w WorldUpdate) MarshalBinary() ([]byte, error) {
 		// WorldData: make(map[ecs.Id][]BinaryComponent), // TODO the binary serdes package I'm using doesn't support ecs.Id as a key panic: reflect.Value.SetMapIndex: value of type uint32 is not assignable to type ecs.Id [recovered] panic: reflect.Value.SetMapIndex: value of type uint32 is not assignable to type ecs.Id
 		WorldData: make(map[uint32][]BinaryComponent),
 		Delete: w.Delete,
+		// Messages: w.Messages,
 	}
 	for id := range w.WorldData {
 		cSlice := make([]BinaryComponent, 0)
@@ -214,6 +226,7 @@ func (w *WorldUpdate) UnmarshalBinary(data []byte) error {
 
 	w.UserId = wu.UserId
 	w.Delete = wu.Delete
+	// w.Messages = wu.Messages
 	if w.WorldData == nil {
 		w.WorldData = make(map[ecs.Id][]ecs.Component)
 	}

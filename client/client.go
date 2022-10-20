@@ -11,6 +11,7 @@ import (
 	"github.com/unitoftime/flow/render"
 	"github.com/unitoftime/glitch"
 	"github.com/unitoftime/mmo"
+	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/mmo/serdes"
 	"github.com/unitoftime/mmo/mnet"
 )
@@ -37,12 +38,42 @@ func ClientSendUpdate(world *ecs.World, clientConn *mnet.Socket, playerData *mmo
 	input, ok := ecs.Read[physics.Input](world, playerId)
 	if !ok { return } // If we can't find the players input just exit early
 
+	compSlice := []ecs.Component{
+		ecs.C(input),
+	}
+
+	// lastMsg := playerData.GetLastMessage()
+	// // log.Print(lastMsg)
+	// var messages []game.ChatMessage
+	// if lastMsg != nil {
+	// 	messages = []game.ChatMessage{
+	// 		game.ChatMessage{
+	// 			Username: "", // Note: Can't trust the username that the client sends
+	// 			Message: lastMsg.Message,
+	// 		},
+	// 	}
+	// }
+
+	// If we can't find a speech, that's okay
+	speech, speechFound := ecs.Read[game.Speech](world, playerId)
+	if speechFound {
+		if speech.HandleSent() {
+			compSlice = append(compSlice, ecs.C(speech))
+			ecs.Write(world, playerId, ecs.C(speech))
+		}
+	}
+
+	// log.Print(messages)
+
 	update := serdes.WorldUpdate{
 		WorldData: map[ecs.Id][]ecs.Component{
-			playerId: []ecs.Component{ecs.C(input)},
+			playerId: compSlice,
 		},
+		// Messages: messages,
 	}
 	// log.Print("ClientSendUpdate:", update)
+
+	// log.Print(update)
 
 	err := clientConn.Send(update)
 	if err != nil {
@@ -80,6 +111,26 @@ func ClientReceive(sock *mnet.Socket, playerData *mmo.PlayerData, networkChannel
 
 		switch t := msg.(type) {
 		case serdes.WorldUpdate:
+			// Note: Because the client received this speech bubble update from the server, we will handle the HandleSent() so that the client doesn't try to resend it to the server.
+			// This code just calls HandleSent() on the player's speech bubble if they just received their own speech bubble
+			compSlice, ok := t.WorldData[playerData.Id()]
+			if ok {
+				for i, c := range compSlice {
+					switch t := c.(type) {
+					case ecs.CompBox[game.Speech]:
+						msg := t.Get().Text
+						log.Print("Client received a message for himself! ", msg)
+						speech := game.Speech{
+							Text: msg,
+						}
+						speech.HandleSent()
+						// TODO - speech.HandleRender() - Would I ever use this to have the server send messages to the client?x
+						compSlice[i] = ecs.C(speech)
+					}
+				}
+			}
+
+
 			networkChannel <- t
 		case serdes.ClientLoginResp:
 			log.Print("serdes.ClientLoginResp", t)

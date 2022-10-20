@@ -24,6 +24,7 @@ import (
 	"github.com/unitoftime/mmo/stat"
 	"github.com/unitoftime/mmo/serdes"
 	"github.com/unitoftime/mmo/mnet"
+	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/ecs"
 )
 
@@ -268,6 +269,26 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 
 			switch t := msg.(type) {
 			case serdes.WorldUpdate:
+				// log.Printf("%v", t.Messages)
+				// for i := range t.Messages {
+				// 	t.Messages[i].Filter() // Run a chat filter
+				// }
+
+				// Filter chat messages
+				for _, compSlice := range t.WorldData {
+					for i, c := range compSlice {
+						switch t := c.(type) {
+						case ecs.CompBox[game.Speech]:
+							filteredText := game.FilterChat(t.Get().Text)
+							log.Print("Chat Speech: ", t.Get().Text)
+							log.Print("Chat Filter: ", filteredText)
+							compSlice[i] = ecs.C(game.Speech{
+								Text: filteredText,
+							})
+						}
+					}
+				}
+
 				t.UserId = userId
 
 				err := serverConn.Send(t)

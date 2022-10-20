@@ -32,7 +32,7 @@ import (
 	"github.com/unitoftime/flow/tile"
 )
 
-//go:embed packed.json packed.png config.yaml
+//go:embed packed.json packed.png config.yaml man.json hat-top.json
 var fs embed.FS
 
 type Config struct {
@@ -238,6 +238,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		check(err)
 	}
 
+	textInputMode := false
+
 	screenCamera := glitch.NewCameraOrtho()
 	screenCamera.SetOrtho2D(win.Bounds())
 	screenCamera.SetView2D(0, 0, 1.0, 1.0)
@@ -264,12 +266,28 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		}},
 		ecs.System{"BodyToSprite", func(dt time.Duration) {
 			ecs.Map(world, func(id ecs.Id, body *game.Body) {
-				_, ok := ecs.Read[render.Sprite](world, id)
+				// _, ok := ecs.Read[render.Sprite](world, id)
+				_, ok := ecs.Read[client.Animation](world, id)
 				if !ok {
 					ecs.Write(world, id,
-						ecs.C(render.NewSprite(
-							manSprites[int(body.Type)])),
+						ecs.C(client.NewAnimation(load, spritesheet, *body)),
+						// ecs.C(render.NewAnimation("idle", map[string][]render.Frame{
+						// 	"idle": idleAnim,
+						// 	"run_left": runAnim,
+						// 	"run_right": runRightAnim,
+						// })),
+						// ecs.C(client.HatAnimation{
+						// 	Animation: render.NewAnimation("idle", map[string][]render.Frame{
+						// 	"idle": hatAnim,
+						// 	"run_left": hatAnim,
+						// 	"run_right": hatAnim,
+						// })}),
+					// )
 					)
+					// ecs.Write(world, id,
+					// 	ecs.C(render.NewSprite(
+					// 		manSprites[int(body.Type)])),
+					// )
 				}
 			})
 		}},
@@ -279,17 +297,52 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			if scrollY != 0 {
 				camera.Zoom += zoomSpeed * scrollY
 			}
-
-			if win.Pressed(glitch.KeyBackspace) {
-				quit.Set(true)
-			}
 		}},
 		ecs.System{"CaptureInput", func(dt time.Duration) {
-			render.CaptureInput(win, world)
+			if !textInputMode {
+				// Check if they want to leave
+				if win.Pressed(glitch.KeyBackspace) {
+					quit.Set(true)
+				}
+
+				render.CaptureInput(win, world)
+			} else {
+				// Clear current inputs
+				ecs.Map2(world, func(id ecs.Id, keybinds *render.Keybinds, input *physics.Input) {
+					input.Left = false
+					input.Right = false
+					input.Up = false
+					input.Down = false
+				})
+
+				if win.JustPressed(glitch.KeyEscape) {
+					textInputMode = false
+				}
+			}
+		}},
+		ecs.System{"SetAnimationFromState", func(dt time.Duration) {
+			ecs.Map2(world, func(id ecs.Id, input *physics.Input, anim *client.Animation) {
+				if input.Left && !input.Right {
+					anim.SetAnimation("run_left")
+				} else if input.Right && !input.Left {
+					anim.SetAnimation("run_right")
+				} else if input.Up || input.Down {
+					anim.SetAnimation("run_left")
+				} else if input.Left && input.Right {
+					anim.SetAnimation("idle_left")
+				} else {
+					anim.SetAnimation("idle_left")
+				}
+			})
 		}},
 	}
 
 	physicsSystems := client.CreateClientSystems(world, sock, playerData)
+
+	panelSprite, err := spritesheet.GetNinePanel("panel.png", glitch.R(2, 2, 2, 2))
+	if err != nil { panic(err) }
+	panelSprite.Scale = 8
+	textInputString := ""
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
@@ -319,6 +372,63 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			pass.Clear()
 			render.DrawSprites(pass, world)
 
+			client.PlayAnimations(pass, world, dt)
+			// render.PlayAnimations(pass, world, dt)
+			// ecs.Map3(world, func(id ecs.Id, anim *client.HatAnimation, bodyAnim *render.Animation, t *physics.Transform) {
+			// 	anim.Update(dt)
+
+			// 	hatPoint := *t
+			// 	// hatPoint.X += float64(anim.Offset[0])
+			// 	// hatPoint.Y += float64(anim.Offset[1])
+			// 	frame := bodyAnim.GetFrame()
+			// 	mountPoint, ok := frame.Mount["hat"]
+			// 	if ok {
+			// 		hatPoint.X += float64(mountPoint[0])
+			// 		hatPoint.Y += float64(mountPoint[1])
+			// 	}
+			// 	anim.Draw(pass, &hatPoint)
+			// })
+
+			// Draw speech bubbles
+			{
+				// TODO - move to physics system
+				{
+					commandList := make([]func(), 0)
+					ecs.Map(world, func(id ecs.Id, speech *game.Speech) {
+						if speech.HandleRender() {
+							commandList = append(commandList,
+								func() {
+									// TODO - combine SpeechRender component with otherone in game.SetSpeech()
+									ecs.Write(world, id, ecs.C(client.SpeechRender{
+										Text: atlas.Text(speech.Text),
+										RemainingDuration: 5 * time.Second,
+									}))
+								})
+						}
+					})
+
+					for _, c := range commandList {
+						c()
+					}
+				}
+
+				ecs.Map2(world, func(id ecs.Id, speech *client.SpeechRender, t *physics.Transform) {
+
+					if speech.RemainingDuration < 0 { return } // Skip the display duration has ended
+					speech.RemainingDuration -= dt
+
+					scale := float32(0.4)
+					mat := glitch.Mat4Ident
+					mat.Scale(scale, scale, 1.0).Translate(float32(t.X), float32(t.Y + t.Height), 0)
+					bounds := speech.Text.Bounds()
+					mat.Translate(scale * (-bounds.W()/2), 15, 0) // TODO - 15 should come from the body height of the character (probably divided by 2)
+
+					col := glitch.RGBA{1, 1, 1, 1}
+					pass.SetLayer(100) // TODO setup layers for in world UI
+					speech.Text.DrawColorMask(pass, mat, col)
+				})
+			}
+
 			// win.SetMatrix(pixel.IM)
 			tilemapPass.SetUniform("projection", camera.Camera.Projection)
 			tilemapPass.SetUniform("view", camera.Camera.View)
@@ -346,6 +456,27 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					group.SetColor(glitch.RGBA{1, 0, 0, 1})
 					group.FixedText("Disconnected", connectedRect, glitch.Vec2{1, 0}, textScale)
 				}
+
+				if !textInputMode && win.JustPressed(glitch.KeyEnter) {
+					textInputMode = true
+				} else if textInputMode {
+					inputRect := win.Bounds()
+					inputRect = inputRect.CutBottom(200)
+					inputRect = inputRect.CutTop(100)
+					inputRect = inputRect.SliceVertical(win.Bounds().W() / 3)
+					// inputRect = inputRect.SliceVertical(win.Bounds().W() / 3)
+					// inputRect = inputRect.SliceHorizontal(100)
+					group.SetColor(glitch.RGBA{1, 1, 1, 1})
+					group.TextInput(panelSprite, &textInputString, inputRect, glitch.Vec2{0.5, 0.5}, textScale)
+					if win.JustPressed(glitch.KeyEnter) {
+						// Write the player's speech bubble
+						// msg := playerData.SendMessage(textInputString)
+						client.SetSpeech(world, atlas, playerData.Id(), textInputString)
+						textInputString = textInputString[:0]
+						textInputMode = false
+					}
+				}
+
 				group.Draw()
 			}
 		}},

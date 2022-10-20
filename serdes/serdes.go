@@ -2,7 +2,6 @@ package serdes
 
 import (
 	"fmt"
-
 	"bytes"
 	"encoding/gob"
 	"sync"
@@ -29,7 +28,18 @@ type WorldUpdate struct {
 	UserId uint64
 	WorldData map[ecs.Id][]ecs.Component
 	Delete []ecs.Id
+	// Messages []ChatMessage
 }
+
+// type ChatMessage struct {
+// 	Id ecs.Id
+// 	Message string
+// }
+
+// Filters the chat message in place, if the chat message is invalid, blanks the message
+// func (c *ChatMessage) Filter() {
+// 	c.Message = FilterChat(c.Message)
+// }
 
 type ClientLogin struct {
 	UserId uint64
