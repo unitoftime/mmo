@@ -1,12 +1,11 @@
 package client
 
 //go:generate sh ase/export.sh
-//go:generate packer --input ase/images --stats --output assets/spritesheet
 
 import (
 	"os"
 	"time"
-	"fmt"
+	// "fmt"
 	"embed"
 
 	"flag"
@@ -91,13 +90,13 @@ func launch() {
 }
 
 func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spritesheet, shader *glitch.Shader, atlas *glitch.Atlas) {
-	panelSprite, err := spritesheet.GetNinePanel("panel.png", glitch.R(2, 2, 2, 2))
+	panelSprite, err := spritesheet.GetNinePanel("ui_panel0.png", glitch.R(2, 2, 2, 2))
 	if err != nil { panic(err) }
-	buttonSprite, err := spritesheet.GetNinePanel("button.png", glitch.R(1, 1, 1, 1))
+	buttonSprite, err := spritesheet.GetNinePanel("ui_button0.png", glitch.R(1, 1, 1, 1))
 	if err != nil { panic(err) }
-	buttonHoverSprite, err := spritesheet.GetNinePanel("button_hover.png", glitch.R(1, 1, 1, 1))
+	buttonHoverSprite, err := spritesheet.GetNinePanel("ui_button_hover0.png", glitch.R(1, 1, 1, 1))
 	if err != nil { panic(err) }
-	buttonPressSprite, err := spritesheet.GetNinePanel("button_press.png", glitch.R(1, 1, 1, 1))
+	buttonPressSprite, err := spritesheet.GetNinePanel("ui_button_press0.png", glitch.R(1, 1, 1, 1))
 	if err != nil { panic(err) }
 
 	panelSprite.Scale = 8
@@ -185,11 +184,11 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 
 	tmap := mmo.LoadGame(world)
 
-	grassTile, err := spritesheet.Get("grass.png")
+	grassTile, err := spritesheet.Get("grass0.png")
 	check(err)
-	dirtTile, err := spritesheet.Get("dirt.png")
+	dirtTile, err := spritesheet.Get("dirt0.png")
 	check(err)
-	waterTile, err := spritesheet.Get("water.png")
+	waterTile, err := spritesheet.Get("water0.png")
 	check(err)
 	log.Print(*waterTile)
 
@@ -203,11 +202,11 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	tmapRender.Batch(tmap)
 
 	// Create people
-	manSprites := make([]*glitch.Sprite, game.NumBodyTypes)
-	for i := 0; i < len(manSprites); i++ {
-		manSprites[i], err = spritesheet.Get(fmt.Sprintf("man%d.png", i))
-		check(err)
-	}
+	// manSprites := make([]*glitch.Sprite, game.NumBodyTypes)
+	// for i := 0; i < len(manSprites); i++ {
+	// 	manSprites[i], err = spritesheet.Get(fmt.Sprintf("man%d.png", i))
+	// 	check(err)
+	// }
 
 	textInputMode := false
 
@@ -310,7 +309,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 
 	physicsSystems := client.CreateClientSystems(world, sock, playerData)
 
-	panelSprite, err := spritesheet.GetNinePanel("panel.png", glitch.R(2, 2, 2, 2))
+	panelSprite, err := spritesheet.GetNinePanel("ui_panel0.png", glitch.R(2, 2, 2, 2))
 	if err != nil { panic(err) }
 	panelSprite.Scale = 8
 	textInputString := ""

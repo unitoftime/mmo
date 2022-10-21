@@ -6,7 +6,6 @@ set -x # Activate debugging
 
 echo "Exporting Aseprite Files to ase/images"
 mkdir -p ase/images
-rm -f ase/images/*
 
 # Exporting with using tags and trimming
 # filenames=(menu_ui particles)
@@ -16,12 +15,19 @@ rm -f ase/images/*
 #     mogrify -trim export/${file}_*.png
 # done
 
-# Exporting with using tags
-filenames=(man hat-top ui)
+# Exporting Animated Objects
+filenames=(man hat-top)
 for file in ${filenames[@]}
 do
 #    aseprite -b ${file}.ase --save-as images/${file}_{tag}{tagframe0}.png
     aseprite -b ase/${file}.ase --format json-array --list-tags --data assets/${file}.json --save-as "ase/images/${file}_{frame}.png"
+done
+
+# Exporting static objects defined by tags
+filenames=(ui)
+for file in ${filenames[@]}
+do
+    aseprite -b ase/${file}.ase --format json-array --list-tags --data assets/${file}.json --save-as "ase/images/${file}_{tag}{tagframe}.png"
 done
 
 # Exporting without using tags
@@ -30,3 +36,9 @@ for file in ${filenames[@]}
 do
     aseprite -b ase/${file}.ase --save-as ase/images/${file}{frame}.png
 done
+
+# Pack all images into a spritesheet
+packer --input ase/images --stats --output assets/spritesheet
+
+# Remove generated images
+rm -f ase/images/*
