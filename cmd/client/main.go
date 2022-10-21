@@ -10,10 +10,6 @@ import (
 	"github.com/unitoftime/mmo/app/client"
 )
 
-// Prod
-// #uri: "wss://mmo.unit.dev:443"
-// #test: false
-
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 

@@ -32,7 +32,7 @@ import (
 // var fs embed.FS
 
 type Config struct {
-	Server string
+	ServerUri string
 	KeyFile string
 	CertFile string
 	Test bool
@@ -68,7 +68,7 @@ func Main(config Config) {
 	log.Print("Using Config: ", config)
 
 	// url := "tcp://127.0.0.1:9000"
-	url := config.Server
+	url := config.ServerUri
 
 	room := NewRoom()
 
