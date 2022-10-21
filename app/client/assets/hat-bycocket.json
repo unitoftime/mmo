@@ -1,0 +1,59 @@
+{ "frames": [
+   {
+    "filename": "hat-bycocket 0.ase",
+    "frame": { "x": 0, "y": 0, "w": 15, "h": 8 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 15, "h": 8 },
+    "sourceSize": { "w": 15, "h": 8 },
+    "duration": 125
+   },
+   {
+    "filename": "hat-bycocket 1.ase",
+    "frame": { "x": 15, "y": 0, "w": 15, "h": 8 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 15, "h": 8 },
+    "sourceSize": { "w": 15, "h": 8 },
+    "duration": 100
+   },
+   {
+    "filename": "hat-bycocket 2.ase",
+    "frame": { "x": 30, "y": 0, "w": 15, "h": 8 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 15, "h": 8 },
+    "sourceSize": { "w": 15, "h": 8 },
+    "duration": 100
+   },
+   {
+    "filename": "hat-bycocket 3.ase",
+    "frame": { "x": 45, "y": 0, "w": 15, "h": 8 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 15, "h": 8 },
+    "sourceSize": { "w": 15, "h": 8 },
+    "duration": 100
+   },
+   {
+    "filename": "hat-bycocket 4.ase",
+    "frame": { "x": 60, "y": 0, "w": 15, "h": 8 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 15, "h": 8 },
+    "sourceSize": { "w": 15, "h": 8 },
+    "duration": 100
+   }
+ ],
+ "meta": {
+  "app": "http://www.aseprite.org/",
+  "version": "1.x-dev",
+  "format": "RGBA8888",
+  "size": { "w": 75, "h": 8 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "idle_left", "from": 0, "to": 0, "direction": "forward" },
+   { "name": "run_left", "from": 1, "to": 4, "direction": "forward" }
+  ]
+ }
+}

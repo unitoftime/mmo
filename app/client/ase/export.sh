@@ -16,7 +16,7 @@ mkdir -p ase/images
 # done
 
 # Exporting Animated Objects
-filenames=(man hat-top)
+filenames=(man hat-top hat-bycocket hat-mohawk hat-nightcap)
 for file in ${filenames[@]}
 do
 #    aseprite -b ${file}.ase --save-as images/${file}_{tag}{tagframe0}.png
