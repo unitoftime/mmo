@@ -87,7 +87,7 @@ func loadAnim(animAssets *asset.Animation) map[string][]render.Frame {
 }
 
 func NewAnimation(load *asset.Load, spritesheet *asset.Spritesheet, body game.Body) Animation {
-	manAssets, err := load.AseAnimation(spritesheet, "man.json")
+	manAssets, err := load.AseAnimation(spritesheet, "assets/man.json")
 	if err != nil {
 		panic(err)
 	}
@@ -96,7 +96,7 @@ func NewAnimation(load *asset.Load, spritesheet *asset.Spritesheet, body game.Bo
 	mirrorAnim(manFrames, "idle_left", "idle_right")
 	bodyAnim := render.NewAnimation("idle_left", manFrames)
 
-	hatAssets, err := load.AseAnimation(spritesheet, "hat-top.json")
+	hatAssets, err := load.AseAnimation(spritesheet, "assets/hat-top.json")
 	if err != nil {
 		panic(err)
 	}

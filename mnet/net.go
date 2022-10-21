@@ -76,12 +76,10 @@ type Socket struct {
 
 	Closed atomic.Bool // Used to indicate that the user has requested to close this ClientConn
 	Connected atomic.Bool // Used to indicate that the underlying connection is still active
-
-	test bool
 }
 
 // TODO - Combine NewSocket and NewConnectedSocket
-func NewSocket(network string, test bool) (*Socket, error) {
+func NewSocket(network string) (*Socket, error) {
 	u, err := url.Parse(network)
 	if err != nil {
 		return nil, err
@@ -93,7 +91,6 @@ func NewSocket(network string, test bool) (*Socket, error) {
 		url: network,
 		encoder: serdes.New(),
 		recvBuf: make([]byte, MaxRecvMsgSize),
-		test: test,
 	}
 	return &sock, nil
 }

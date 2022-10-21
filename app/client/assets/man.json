@@ -1,0 +1,86 @@
+{ "frames": [
+   {
+    "filename": "man 0.ase",
+    "frame": { "x": 0, "y": 0, "w": 16, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
+    "sourceSize": { "w": 16, "h": 20 },
+    "duration": 125
+   },
+   {
+    "filename": "man 1.ase",
+    "frame": { "x": 16, "y": 0, "w": 16, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
+    "sourceSize": { "w": 16, "h": 20 },
+    "duration": 150
+   },
+   {
+    "filename": "man 2.ase",
+    "frame": { "x": 32, "y": 0, "w": 16, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
+    "sourceSize": { "w": 16, "h": 20 },
+    "duration": 150
+   },
+   {
+    "filename": "man 3.ase",
+    "frame": { "x": 48, "y": 0, "w": 16, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
+    "sourceSize": { "w": 16, "h": 20 },
+    "duration": 125
+   },
+   {
+    "filename": "man 4.ase",
+    "frame": { "x": 64, "y": 0, "w": 16, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
+    "sourceSize": { "w": 16, "h": 20 },
+    "duration": 100
+   },
+   {
+    "filename": "man 5.ase",
+    "frame": { "x": 80, "y": 0, "w": 16, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
+    "sourceSize": { "w": 16, "h": 20 },
+    "duration": 100
+   },
+   {
+    "filename": "man 6.ase",
+    "frame": { "x": 96, "y": 0, "w": 16, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
+    "sourceSize": { "w": 16, "h": 20 },
+    "duration": 100
+   },
+   {
+    "filename": "man 7.ase",
+    "frame": { "x": 112, "y": 0, "w": 16, "h": 20 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
+    "sourceSize": { "w": 16, "h": 20 },
+    "duration": 100
+   }
+ ],
+ "meta": {
+  "app": "http://www.aseprite.org/",
+  "version": "1.x-dev",
+  "format": "RGBA8888",
+  "size": { "w": 128, "h": 20 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "idle_left", "from": 0, "to": 3, "direction": "forward" },
+   { "name": "run_left", "from": 4, "to": 7, "direction": "forward" }
+  ]
+ }
+}
