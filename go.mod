@@ -8,9 +8,8 @@ require (
 	github.com/smallnest/goframe v1.0.0
 	github.com/unitoftime/binary v1.0.20
 	github.com/unitoftime/ecs v0.0.0-20220916124912-0589184b5397
-	github.com/unitoftime/flow v0.0.0-20221010144618-c42ada0354b8
+	github.com/unitoftime/flow v0.0.0-20221022111750-d129914e5d90
 	github.com/unitoftime/glitch v0.0.0-20221010144550-97cf1b8051fd
-	gopkg.in/yaml.v3 v3.0.1
 	nhooyr.io/websocket v1.8.7
 )
 
@@ -33,5 +32,6 @@ require (
 	github.com/zyedidia/generic v1.1.0 // indirect
 	golang.org/x/image v0.0.0-20220902085622-e7cb96979f69 // indirect
 	golang.org/x/sys v0.0.0-20221006211917-84dc82d7e875 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/js/dom v0.0.0-20221001195520-26252dedbe70 // indirect
 )

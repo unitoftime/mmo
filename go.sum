@@ -296,8 +296,8 @@ github.com/unitoftime/binary v1.0.20 h1:2m2PF//RLL/HtycHWix0dD8B2QXYz8HDhSE50snf
 github.com/unitoftime/binary v1.0.20/go.mod h1:cFEhWMApu2VjstJkurQ1fHSW7K07tWNraFGS5TZtmE4=
 github.com/unitoftime/ecs v0.0.0-20220916124912-0589184b5397 h1:3iIy8YDY4xfwYNrc4U2TJZb1mf2gVI3IOyQBddPBsX8=
 github.com/unitoftime/ecs v0.0.0-20220916124912-0589184b5397/go.mod h1:873d7qy6W9H0GsBWLfpnohI3Bv6j90WreOgoq8HAUGo=
-github.com/unitoftime/flow v0.0.0-20221010144618-c42ada0354b8 h1:vi0Q1kDzLHr6jVrwXLFD29mQJRGKi7nSv4tMeA+vm1s=
-github.com/unitoftime/flow v0.0.0-20221010144618-c42ada0354b8/go.mod h1:2mwdRK4SA0c1g1PYNYCRRJsbh9dmYCJ9GIhmnZwaHPI=
+github.com/unitoftime/flow v0.0.0-20221022111750-d129914e5d90 h1:TR6s+yjXg7lL/lumgH4m/RRa9cjkJNuuiIAtIsD0nHA=
+github.com/unitoftime/flow v0.0.0-20221022111750-d129914e5d90/go.mod h1:8/M8u2eMbtST0FoGevogJBM+zMJRHtd7cUZsgy3OxSE=
 github.com/unitoftime/gl v0.0.0-20221010144157-ddeda43df375 h1:n94r8bZYjEdpvqPFhAavIcRXWDiG6+EOGaFGTWGU09U=
 github.com/unitoftime/gl v0.0.0-20221010144157-ddeda43df375/go.mod h1:4axEJ3yVNYEDixZANMK/gks8BuHAuve4Y6bit4F859A=
 github.com/unitoftime/glfw v0.0.0-20221010144402-edf1236838eb h1:NR7J/AkQS6e98oPxRu8boUTBoa1qhEIqG/1IwFE+RX0=
