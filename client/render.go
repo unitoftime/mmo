@@ -8,6 +8,8 @@ import (
 	"github.com/unitoftime/flow/render"
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/asset"
+
+	"github.com/unitoftime/packer" // TODO - move packer to flow?
 )
 
 type SpeechRender struct {
@@ -29,7 +31,6 @@ func SetSpeech(world *ecs.World, atlas *glitch.Atlas, id ecs.Id, message string)
 		}),
 	)
 }
-
 
 type Animation struct {
 	Body *render.Animation
@@ -54,16 +55,26 @@ func PlayAnimations(pass *glitch.RenderPass, world *ecs.World, dt time.Duration)
 		// hatPoint.X += float64(anim.Offset[0])
 		// hatPoint.Y += float64(anim.Offset[1])
 		frame := anim.Body.GetFrame()
-		mountPoint, ok := frame.Mount["hat"]
-		if ok {
-			hatPoint.X += float64(mountPoint[0])
-			hatPoint.Y += float64(mountPoint[1])
-		}
+		mountPoint := frame.Mount("hat")
+		hatPoint.X += float64(mountPoint[0])
+		hatPoint.Y += float64(mountPoint[1])
+
+		hatFrame := anim.Hat.GetFrame()
+		hatDestPoint := hatFrame.Mount("dest")
+		hatPoint.X -= float64(hatDestPoint[0])
+		hatPoint.Y -= float64(hatDestPoint[1])
+
+		// mountPoint, ok := frame.Mount["hat"]
+		// if ok {
+		// 	hatPoint.X += float64(mountPoint[0])
+		// 	hatPoint.Y += float64(mountPoint[1])
+		// }
 		anim.Hat.Draw(pass, &hatPoint)
 	})
 }
 
 func mirrorAnim(anims map[string][]render.Frame, from, to string) {
+	// TODO - as a note. Mirrored anims share the same mount points. This might not right/left mountpoints. It probably works fine for centered mount points
 	mirroredAnim := make([]render.Frame, 0)
 	for i, frame := range anims[from] {
 		mirroredAnim = append(mirroredAnim, frame)
@@ -72,13 +83,34 @@ func mirrorAnim(anims map[string][]render.Frame, from, to string) {
 	anims[to] = mirroredAnim
 }
 
-func loadAnim(animAssets *asset.Animation) map[string][]render.Frame {
+func loadAnim(animAssets *asset.Animation, mountFrames packer.MountFrames) map[string][]render.Frame {
 	manFrames := make(map[string][]render.Frame)
 	for animName, frames := range animAssets.Frames {
 		renderFrames := make([]render.Frame, 0)
 		for _, frame := range frames {
+
+			// Build the frame
 			rFrame := render.NewFrame(frame.Sprite, frame.Duration)
 			rFrame.MirrorY = frame.MirrorY
+
+			// Add on any available mounting data
+			mountData, ok := mountFrames.Frames[frame.Name]
+			if ok {
+				hatPoint, ok := mountData.MountPoints[0xFF0000]
+				if ok {
+					point := glitch.Vec2{float32(hatPoint.X), float32(hatPoint.Y)}
+					rFrame.SetMount("hat", point)
+				}
+
+				// Destination Mount Point TODO - rename dest to something better
+				destPoint, ok := mountData.MountPoints[0x000000]
+				if ok {
+					point := glitch.Vec2{float32(destPoint.X), float32(destPoint.Y)}
+					rFrame.SetMount("dest", point)
+				}
+			}
+
+			// Append it
 			renderFrames = append(renderFrames, rFrame)
 		}
 		manFrames[animName] = renderFrames
@@ -87,36 +119,39 @@ func loadAnim(animAssets *asset.Animation) map[string][]render.Frame {
 }
 
 func NewAnimation(load *asset.Load, spritesheet *asset.Spritesheet, body game.Body) Animation {
+	mountFrames, err := load.Mountpoints("assets/mountpoints.json")
+	if err != nil {
+		panic(err)
+	}
+
+	// Load the body
 	manAssets, err := load.AseAnimation(spritesheet, "assets/man.json")
 	if err != nil {
 		panic(err)
 	}
-	manFrames := loadAnim(manAssets)
+	manFrames := loadAnim(manAssets, mountFrames)
+
 	mirrorAnim(manFrames, "run_left", "run_right")
 	mirrorAnim(manFrames, "idle_left", "idle_right")
 	bodyAnim := render.NewAnimation("idle_left", manFrames)
 
-	hatAssets, err := load.AseAnimation(spritesheet, "assets/hat-top.json")
+
+	hats := []string{
+		"assets/hat-top.json",
+		"assets/hat-mohawk.json",
+		"assets/hat-nightcap.json",
+		"assets/hat-bycocket.json",
+	}
+	hatFile := hats[body.Type]
+	// Load the hat
+	hatAssets, err := load.AseAnimation(spritesheet, hatFile)
 	if err != nil {
 		panic(err)
 	}
-	hatFrames := loadAnim(hatAssets)
+	hatFrames := loadAnim(hatAssets, mountFrames)
 	mirrorAnim(hatFrames, "run_left", "run_right")
 	mirrorAnim(hatFrames, "idle_left", "idle_right")
 	hatAnim := render.NewAnimation("idle_left", hatFrames)
-
-	// idleAnim[0].Mount["hat"] = glitch.Vec2{0, 7}
-	// idleAnim[1].Mount["hat"] = glitch.Vec2{0, 6}
-	// idleAnim[2].Mount["hat"] = glitch.Vec2{0, 5}
-	// idleAnim[3].Mount["hat"] = glitch.Vec2{0, 6}
-	// runAnim[0].Mount["hat"] = glitch.Vec2{0, 8}
-	// runAnim[1].Mount["hat"] = glitch.Vec2{0, 9}
-	// runAnim[2].Mount["hat"] = glitch.Vec2{0, 8}
-	// runAnim[3].Mount["hat"] = glitch.Vec2{0, 7}
-	// runRightAnim[0].Mount["hat"] = glitch.Vec2{0, 8}
-	// runRightAnim[1].Mount["hat"] = glitch.Vec2{0, 9}
-	// runRightAnim[2].Mount["hat"] = glitch.Vec2{0, 7}
-	// runRightAnim[3].Mount["hat"] = glitch.Vec2{0, 7}
 
 	return Animation{
 		Body: &bodyAnim,

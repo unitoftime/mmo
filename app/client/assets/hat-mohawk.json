@@ -1,47 +1,47 @@
 { "frames": [
    {
     "filename": "hat-mohawk 0.ase",
-    "frame": { "x": 0, "y": 0, "w": 12, "h": 8 },
+    "frame": { "x": 0, "y": 0, "w": 5, "h": 6 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 8 },
-    "sourceSize": { "w": 12, "h": 8 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 5, "h": 6 },
+    "sourceSize": { "w": 5, "h": 6 },
     "duration": 125
    },
    {
     "filename": "hat-mohawk 1.ase",
-    "frame": { "x": 12, "y": 0, "w": 12, "h": 8 },
+    "frame": { "x": 5, "y": 0, "w": 5, "h": 6 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 8 },
-    "sourceSize": { "w": 12, "h": 8 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 5, "h": 6 },
+    "sourceSize": { "w": 5, "h": 6 },
     "duration": 100
    },
    {
     "filename": "hat-mohawk 2.ase",
-    "frame": { "x": 24, "y": 0, "w": 12, "h": 8 },
+    "frame": { "x": 10, "y": 0, "w": 5, "h": 6 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 8 },
-    "sourceSize": { "w": 12, "h": 8 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 5, "h": 6 },
+    "sourceSize": { "w": 5, "h": 6 },
     "duration": 100
    },
    {
     "filename": "hat-mohawk 3.ase",
-    "frame": { "x": 36, "y": 0, "w": 12, "h": 8 },
+    "frame": { "x": 15, "y": 0, "w": 5, "h": 6 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 8 },
-    "sourceSize": { "w": 12, "h": 8 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 5, "h": 6 },
+    "sourceSize": { "w": 5, "h": 6 },
     "duration": 100
    },
    {
     "filename": "hat-mohawk 4.ase",
-    "frame": { "x": 48, "y": 0, "w": 12, "h": 8 },
+    "frame": { "x": 20, "y": 0, "w": 5, "h": 6 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 8 },
-    "sourceSize": { "w": 12, "h": 8 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 5, "h": 6 },
+    "sourceSize": { "w": 5, "h": 6 },
     "duration": 100
    }
  ],
@@ -49,7 +49,7 @@
   "app": "http://www.aseprite.org/",
   "version": "1.x-dev",
   "format": "RGBA8888",
-  "size": { "w": 60, "h": 8 },
+  "size": { "w": 25, "h": 6 },
   "scale": "1",
   "frameTags": [
    { "name": "idle_left", "from": 0, "to": 0, "direction": "forward" },

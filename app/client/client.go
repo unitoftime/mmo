@@ -236,28 +236,11 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		}},
 		ecs.System{"BodyToSprite", func(dt time.Duration) {
 			ecs.Map(world, func(id ecs.Id, body *game.Body) {
-				// _, ok := ecs.Read[render.Sprite](world, id)
 				_, ok := ecs.Read[client.Animation](world, id)
 				if !ok {
 					ecs.Write(world, id,
 						ecs.C(client.NewAnimation(load, spritesheet, *body)),
-						// ecs.C(render.NewAnimation("idle", map[string][]render.Frame{
-						// 	"idle": idleAnim,
-						// 	"run_left": runAnim,
-						// 	"run_right": runRightAnim,
-						// })),
-						// ecs.C(client.HatAnimation{
-						// 	Animation: render.NewAnimation("idle", map[string][]render.Frame{
-						// 	"idle": hatAnim,
-						// 	"run_left": hatAnim,
-						// 	"run_right": hatAnim,
-						// })}),
-					// )
 					)
-					// ecs.Write(world, id,
-					// 	ecs.C(render.NewSprite(
-					// 		manSprites[int(body.Type)])),
-					// )
 				}
 			})
 		}},

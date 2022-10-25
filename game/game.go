@@ -8,7 +8,7 @@ import (
 )
 
 
-const NumBodyTypes = 5
+const NumBodyTypes = 4
 type Body struct {
 	Type uint32
 }

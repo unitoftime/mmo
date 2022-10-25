@@ -6,5 +6,4 @@ go run ./server &
 sleep 1
 go run ./proxy &
 sleep 1
-cd client
-go run .
+go run ./client
