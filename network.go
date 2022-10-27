@@ -5,6 +5,7 @@ import (
 	"time"
 	"errors"
 	"sync"
+	"math"
 	"math/rand"
 	"net"
 
@@ -59,10 +60,14 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 
 	// Build the world update
 	update := serdes.WorldUpdate{
+		Tick: server.tick,
 		UserId: 0,
 		WorldData: make(map[ecs.Id][]ecs.Component),
 		Delete: dListCopy,
 	}
+
+	//Increment server tick
+	server.tick = (server.tick + 1) % math.MaxUint16
 
 	// TODO - [optional ecs feature] speech should be optional!!!!
 	// TODO - When you do SOI code, and generate messages on a per player basis. You should also not include the speech bubble that the player just sent.
@@ -83,7 +88,7 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 
 	// Send world update to all users
 	{
-		ecs.Map(world, func(id ecs.Id, user *User) {
+		ecs.Map2(world, func(id ecs.Id, user *User, clientTick *ClientTick) {
 			update.UserId = user.Id // Specify the user we want to send the update to
 			// log.Println("ServerSendUpdate WorldUpdate:", update)
 
@@ -94,6 +99,9 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 				deleteList.Append(id) // This deletes the user (ie they logged out)
 				return
 			}
+
+			// Set the player's update tick so they can synchronize
+			update.PlayerTick = clientTick.Tick
 
 			// log.Printf("SendUpdate", update)
 			err := proxy.Send(update)
@@ -151,9 +159,10 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 				compSlice = append(compSlice, ecs.C(speech))
 			}
 
-			// for i := range t.Messages {
-			// 	t.Messages[i].EcsId = id
-			// }
+			// We just send this field back to the player, we don't use it internally. This is for them to syncrhonize their client prediction.
+			compSlice = append(compSlice, ecs.C(ClientTick{
+				Tick: t.PlayerTick,
+			}))
 
 			trustedUpdate := serdes.WorldUpdate{
 				WorldData: map[ecs.Id][]ecs.Component{
@@ -269,6 +278,8 @@ func (c *ServerConn) GetStats() int {
 type Server struct {
 	listener net.Listener
 	handler func(*ServerConn) error
+
+	tick uint16
 
  	connectionsMut sync.RWMutex // Sync for connections map
 	connections map[uint64]*ServerConn // A map of proxyIds to Proxy connections

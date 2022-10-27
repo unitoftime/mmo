@@ -37,12 +37,6 @@ type Config struct {
 	ProxyUri string
 }
 
-func check(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
 var skipMenu = flag.Bool("skip", false, "skip the login menu (for testing)")
 
 var globalConfig Config
@@ -61,13 +55,9 @@ func launch() {
 	win, err := glitch.NewWindow(1920, 1080, "MMO", glitch.WindowConfig{
 		Vsync: true,
 	})
-
-	check(err)
-	// win.SetSmooth(false)
-
-	// camera := glitch.NewCameraOrtho()
-	// camera.SetOrtho2D(win)
-	// camera.SetView2D(0, 0, 1.0, 1.0)
+	if err != nil {
+		panic(err)
+	}
 
 	load := asset.NewLoad(fs)
 	// load := asset.NewLoad(os.DirFS("http://localhost:8081"))
@@ -185,11 +175,11 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	tmap := mmo.LoadGame(world)
 
 	grassTile, err := spritesheet.Get("grass0.png")
-	check(err)
+	if err != nil { panic(err) }
 	dirtTile, err := spritesheet.Get("dirt0.png")
-	check(err)
+	if err != nil { panic(err) }
 	waterTile, err := spritesheet.Get("water0.png")
-	check(err)
+	if err != nil { panic(err) }
 	log.Print(*waterTile)
 
 	tmapRender := render.NewTilemapRender(spritesheet, map[tile.TileType]*glitch.Sprite{
@@ -200,13 +190,6 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 
 	tmapRender.Clear()
 	tmapRender.Batch(tmap)
-
-	// Create people
-	// manSprites := make([]*glitch.Sprite, game.NumBodyTypes)
-	// for i := 0; i < len(manSprites); i++ {
-	// 	manSprites[i], err = spritesheet.Get(fmt.Sprintf("man%d.png", i))
-	// 	check(err)
-	// }
 
 	textInputMode := false
 
@@ -222,9 +205,6 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 
 	inputSystems := []ecs.System{
 		mmo.CreatePollNetworkSystem(world, networkChannel),
-		// ecs.System{"InterpolateSpritePositions", func(dt time.Duration) {
-		// 	render.InterpolateSpritePositions(world, dt)
-		// }},
 		ecs.System{"ManageEntityTimeout", func(dt time.Duration) {
 			timeout := 5 * time.Second
 			now := time.Now()
@@ -297,6 +277,9 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	panelSprite.Scale = 8
 	textInputString := ""
 
+	debugSprite, err := spritesheet.Get("ui_panel0.png")
+	if err != nil { panic(err) }
+
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
 			transform, ok := ecs.Read[physics.Transform](world, playerData.Id())
@@ -326,21 +309,17 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			render.DrawSprites(pass, world)
 
 			client.PlayAnimations(pass, world, dt)
-			// render.PlayAnimations(pass, world, dt)
-			// ecs.Map3(world, func(id ecs.Id, anim *client.HatAnimation, bodyAnim *render.Animation, t *physics.Transform) {
-			// 	anim.Update(dt)
 
-			// 	hatPoint := *t
-			// 	// hatPoint.X += float64(anim.Offset[0])
-			// 	// hatPoint.Y += float64(anim.Offset[1])
-			// 	frame := bodyAnim.GetFrame()
-			// 	mountPoint, ok := frame.Mount["hat"]
-			// 	if ok {
-			// 		hatPoint.X += float64(mountPoint[0])
-			// 		hatPoint.Y += float64(mountPoint[1])
-			// 	}
-			// 	anim.Draw(pass, &hatPoint)
-			// })
+			// Debug. Draw neworking position buffer
+			{
+				ecs.Map2(world, func(id ecs.Id, t *physics.Transform, nt *client.NextTransform) {
+
+					npos := nt.PhyTrans
+					mat := glitch.Mat4Ident
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(npos.X), float32(npos.Y + npos.Height), 0)
+					debugSprite.Draw(pass, mat)
+				})
+			}
 
 			// Draw speech bubbles
 			{

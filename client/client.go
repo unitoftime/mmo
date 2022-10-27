@@ -9,6 +9,7 @@ import (
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/render"
+	"github.com/unitoftime/flow/interp"
 	"github.com/unitoftime/glitch"
 	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/mmo/game"
@@ -16,14 +17,62 @@ import (
 	"github.com/unitoftime/mmo/mnet"
 )
 
+type NextTransform struct {
+	PhyTrans physics.Transform
+	Replayed bool
+}
+// type LastTransform physics.Transform
+// TODO - do a full fledged transform buffer
+// type TransformBuffer struct {
+// 	buffer []physics.Transform
+// }
+
 func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.PlayerData) []ecs.System {
 	clientSystems := []ecs.System{
 		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
 			ClientSendUpdate(world, sock, playerData)
 		}},
+		ecs.System{"ReplayInputBuffer", func(dt time.Duration) {
+			// Replays the remaining input buffer to try and guesstimate the player's position
+			inputBuffer := playerData.GetInputBuffer()
+			playerId := playerData.Id()
+			transform, ok := ecs.Read[NextTransform](world, playerId)
+			if !transform.Replayed {
+				if !ok { return } // Skip if player doesn't have a transform
+				for i := range inputBuffer {
+					physics.BasicMMOPhysics(&inputBuffer[i], &transform.PhyTrans, ecs.FixedTimeStep)
+				}
+				transform.Replayed = true
+				ecs.Write(world, playerId, ecs.C(transform))
+			}
+		}},
+		// Note: This must be after ReplayInputBuffer because if a replay happens, then we want to interpolate halfway there
+		ecs.System{"InterpolateSpritePositions", func(dt time.Duration) {
+			// TODO - hack. We needed a way to create the transform component for other players (because we did a change which makes us set NextTransform over the wire instead of transform. So those were never being set
+			// Logic: If has next transform, but doesn't have transform, then add transform
+			ecs.Map(world, func(id ecs.Id, nextT *NextTransform) {
+				_, ok := ecs.Read[physics.Transform](world, id)
+				if !ok {
+					ecs.Write(world, id, ecs.C(physics.Transform{}))
+				}
+			})
+
+			// This interpolates the transform position based on what the server just said it was
+			ecs.Map2(world, func(id ecs.Id, phyT *physics.Transform, nextT *NextTransform) {
+				interpFactor := 0.1
+				phyT.X = interp.Linear.Float64(phyT.X, nextT.PhyTrans.X, interpFactor)
+				phyT.Y = interp.Linear.Float64(phyT.Y, nextT.PhyTrans.Y, interpFactor)
+			})
+		}},
 	}
 
-	physicsSystems := mmo.CreatePhysicsSystems(world)
+	physicsSystems := []ecs.System{
+		ecs.System{"HandleInput", func(dt time.Duration) {
+			ecs.Map2(world, func(id ecs.Id, input *physics.Input, nextTrans *NextTransform) {
+				physics.BasicMMOPhysics(input, &nextTrans.PhyTrans, dt)
+			})
+		}},
+	}
 	clientSystems = append(clientSystems, physicsSystems...)
 	return clientSystems
 }
@@ -37,6 +86,8 @@ func ClientSendUpdate(world *ecs.World, clientConn *mnet.Socket, playerData *mmo
 
 	input, ok := ecs.Read[physics.Input](world, playerId)
 	if !ok { return } // If we can't find the players input just exit early
+
+	playerTick := playerData.AppendInputTick(input)
 
 	compSlice := []ecs.Component{
 		ecs.C(input),
@@ -66,6 +117,7 @@ func ClientSendUpdate(world *ecs.World, clientConn *mnet.Socket, playerData *mmo
 	// log.Print(messages)
 
 	update := serdes.WorldUpdate{
+		PlayerTick: playerTick,
 		WorldData: map[ecs.Id][]ecs.Component{
 			playerId: compSlice,
 		},
@@ -111,10 +163,14 @@ func ClientReceive(sock *mnet.Socket, playerData *mmo.PlayerData, networkChannel
 
 		switch t := msg.(type) {
 		case serdes.WorldUpdate:
+			log.Print(t.Tick)
+			playerData.SetTicks(t.Tick, t.PlayerTick)
+
 			// Note: Because the client received this speech bubble update from the server, we will handle the HandleSent() so that the client doesn't try to resend it to the server.
 			// This code just calls HandleSent() on the player's speech bubble if they just received their own speech bubble
 			compSlice, ok := t.WorldData[playerData.Id()]
 			if ok {
+				// Pull out game.Speech for playerId
 				for i, c := range compSlice {
 					switch t := c.(type) {
 					case ecs.CompBox[game.Speech]:
@@ -124,12 +180,24 @@ func ClientReceive(sock *mnet.Socket, playerData *mmo.PlayerData, networkChannel
 							Text: msg,
 						}
 						speech.HandleSent()
-						// TODO - speech.HandleRender() - Would I ever use this to have the server send messages to the client?x
+						// TODO - speech.HandleRender() - Would I ever use this to have the server send messages to the client?
 						compSlice[i] = ecs.C(speech)
 					}
 				}
 			}
 
+			for _, compSlice := range t.WorldData {
+				for i, c := range compSlice {
+					switch t := c.(type) {
+					case ecs.CompBox[physics.Transform]:
+						nextTransform := NextTransform{
+							PhyTrans: t.Get(),
+							Replayed: false,
+						}
+						compSlice[i] = ecs.C(nextTransform)
+					}
+				}
+			}
 
 			networkChannel <- t
 		case serdes.ClientLoginResp:
@@ -152,6 +220,7 @@ func ClientReceive(sock *mnet.Socket, playerData *mmo.PlayerData, networkChannel
 				WorldData: map[ecs.Id][]ecs.Component{
 					ecs.Id(t.Id): []ecs.Component{
 						ecs.C(physics.Input{}),
+						ecs.C(physics.Transform{}),
 						ecs.C(render.Keybinds{
 							Up: glitch.KeyW,
 							Down: glitch.KeyS,

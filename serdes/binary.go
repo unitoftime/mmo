@@ -192,6 +192,8 @@ func (b *BinaryComponent) ToNormal() (ecs.Component, error) {
 
 
 type BinWorldUpdate struct {
+	Tick uint16
+	PlayerTick uint16
 	UserId uint64
 	WorldData map[uint32][]BinaryComponent
 	Delete []ecs.Id
@@ -200,6 +202,8 @@ type BinWorldUpdate struct {
 
 func (w WorldUpdate) MarshalBinary() ([]byte, error) {
 	wu := BinWorldUpdate{
+		Tick: w.Tick,
+		PlayerTick: w.PlayerTick,
 		UserId: w.UserId,
 		// WorldData: make(map[ecs.Id][]BinaryComponent), // TODO the binary serdes package I'm using doesn't support ecs.Id as a key panic: reflect.Value.SetMapIndex: value of type uint32 is not assignable to type ecs.Id [recovered] panic: reflect.Value.SetMapIndex: value of type uint32 is not assignable to type ecs.Id
 		WorldData: make(map[uint32][]BinaryComponent),
@@ -224,6 +228,8 @@ func (w *WorldUpdate) UnmarshalBinary(data []byte) error {
 	err := binary.Unmarshal(data, &wu)
 	if err != nil { return nil }
 
+	w.Tick = wu.Tick
+	w.PlayerTick = wu.PlayerTick
 	w.UserId = wu.UserId
 	w.Delete = wu.Delete
 	// w.Messages = wu.Messages

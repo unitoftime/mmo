@@ -1,6 +1,7 @@
 package mmo
 
 import (
+	// "fmt"
 	"time"
 	"math"
 	"sync"
@@ -23,7 +24,10 @@ var tileSize int = 16
 type PlayerData struct {
 	mu sync.RWMutex
 	id ecs.Id
+	playerTick uint16
+	serverTick uint16
 	lastMessage string
+	inputBuffer []physics.Input
 }
 func NewPlayerData() *PlayerData {
 	return &PlayerData{
@@ -43,6 +47,48 @@ func (p *PlayerData) SetId(id ecs.Id) {
 	p.id = id
 	p.mu.Unlock()
 }
+
+// func (p *PlayerData) Tick() uint16 {
+// 	p.mu.RLock()
+// 	ret := p.tick
+// 	p.mu.RUnlock()
+// 	return ret
+// }
+
+func (p *PlayerData) SetTicks(serverTick, serverUpdatePlayerTick uint16) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Set the last server tick we've received
+	p.serverTick = serverTick
+
+	// Cut off every player input tick that the server hasn't processed
+	cut := int(p.playerTick - serverUpdatePlayerTick)
+	// fmt.Println("InputBuffer", p.serverTick, p.playerTick, serverUpdatePlayerTick, len(p.inputBuffer))
+	if cut >= 0 && cut <= len(p.inputBuffer) {
+		// TODO - it'd be more efficient to use a queue
+		copy(p.inputBuffer, p.inputBuffer[len(p.inputBuffer)-cut:])
+		p.inputBuffer = p.inputBuffer[:cut]
+		// fmt.Println("Copied", n, len(p.inputBuffer))
+	} else {
+		// fmt.Println("OOB")
+	}
+}
+
+// Returns the player tick that this input is associated with
+func (p *PlayerData) AppendInputTick(input physics.Input) uint16 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.playerTick = (p.playerTick + 1) % math.MaxUint16
+	p.inputBuffer = append(p.inputBuffer, input)
+	return p.playerTick
+}
+
+func (p *PlayerData) GetInputBuffer() []physics.Input {
+	return p.inputBuffer
+}
+
 
 // Returns the message as sent to the server
 // TODO - if the player sends another message fast enough, it could blank out their first message
@@ -87,6 +133,11 @@ type User struct {
 	// Name string // TODO - remove and put into a component called "DisplayName"
 	Id uint64
 	ProxyId uint64
+}
+
+// This is the tick that the client says they are on
+type ClientTick struct {
+	Tick uint16 // This is the tick that the player is currently on
 }
 
 const (
@@ -140,22 +191,27 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tile.Tilemap {
 	return tmap
 }
 
-func CreatePhysicsSystems(world *ecs.World) []ecs.System {
-	physicsSystems := []ecs.System{
-		ecs.System{"HandleInput", func(dt time.Duration) {
-			physics.HandleInput(world, dt)
-		}},
-	}
-	return physicsSystems
-}
+// Note: This didn't work because client has to handle input differently than server (ie client does clientside prediction and interp)
+// func CreatePhysicsSystems(world *ecs.World) []ecs.System {
+// 	physicsSystems := []ecs.System{
+// 		ecs.System{"HandleInput", func(dt time.Duration) {
+// 			physics.HandleInput(world, dt)
+// 		}},
+// 	}
+// 	return physicsSystems
+// }
 
 func CreateServerSystems(world *ecs.World, server *Server, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) []ecs.System {
 	serverSystems := []ecs.System{
 		CreatePollNetworkSystem(world, networkChannel),
 	}
 
+	// serverSystems = append(serverSystems,
+	// 	CreatePhysicsSystems(world)...)
 	serverSystems = append(serverSystems,
-		CreatePhysicsSystems(world)...)
+		ecs.System{"HandleInput", func(dt time.Duration) {
+			physics.HandleInput(world, dt)
+		}})
 
 	serverSystems = append(serverSystems, []ecs.System{
 		ecs.System{"ServerSendUpdate", func(dt time.Duration) {
@@ -179,10 +235,8 @@ func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldU
 			case update := <-networkChannel:
 				for id, compList := range update.WorldData {
 					compList = append(compList, ecs.C(LastUpdate{time.Now()}))
-					ecs.Write(world, id, compList...)
 
-// TODO - Do I still need interpolation like this?
-// TODO - Forcing this to fail: Note: We removed position from sprite with the plan to make an networkPosition be the thing that comes off the network. Then have a system that interps that into the current transform
+					ecs.Write(world, id, compList...)
 				}
 
 				// Delete all the entities in the deleteList

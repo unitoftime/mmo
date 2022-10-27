@@ -25,6 +25,8 @@ const (
 )
 
 type WorldUpdate struct {
+	Tick uint16
+	PlayerTick uint16
 	UserId uint64
 	WorldData map[ecs.Id][]ecs.Component
 	Delete []ecs.Id
