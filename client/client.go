@@ -163,7 +163,6 @@ func ClientReceive(sock *mnet.Socket, playerData *mmo.PlayerData, networkChannel
 
 		switch t := msg.(type) {
 		case serdes.WorldUpdate:
-			log.Print(t.Tick)
 			playerData.SetTicks(t.Tick, t.PlayerTick)
 
 			// Note: Because the client received this speech bubble update from the server, we will handle the HandleSent() so that the client doesn't try to resend it to the server.
