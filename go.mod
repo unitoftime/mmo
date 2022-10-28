@@ -3,13 +3,14 @@ module github.com/unitoftime/mmo
 go 1.19
 
 require (
-	github.com/google/flatbuffers v22.9.29+incompatible
+	github.com/google/flatbuffers v22.10.26+incompatible
 	github.com/rs/zerolog v1.28.0
 	github.com/smallnest/goframe v1.0.0
 	github.com/unitoftime/binary v1.0.20
 	github.com/unitoftime/ecs v0.0.0-20220916124912-0589184b5397
-	github.com/unitoftime/flow v0.0.0-20221025144800-a1a930e87701
+	github.com/unitoftime/flow v0.0.0-20221028145631-43de23611d1a
 	github.com/unitoftime/glitch v0.0.0-20221022112833-f053fb856390
+	github.com/unitoftime/packer v0.0.0-20221025144022-f735c2d94be9
 	nhooyr.io/websocket v1.8.7
 )
 
@@ -22,7 +23,7 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
-	github.com/klauspost/compress v1.15.11 // indirect
+	github.com/klauspost/compress v1.15.12 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/ojrac/opensimplex-go v1.0.2 // indirect
@@ -30,8 +31,7 @@ require (
 	github.com/ungerik/go3d v0.0.0-20220309204530-55ced4bcb334 // indirect
 	github.com/unitoftime/gl v0.0.0-20221010144157-ddeda43df375 // indirect
 	github.com/unitoftime/glfw v0.0.0-20221017123037-4b328bb54278 // indirect
-	github.com/unitoftime/packer v0.0.0-20220105185326-f541e031de11 // indirect
-	github.com/zyedidia/generic v1.1.0 // indirect
+	github.com/zyedidia/generic v1.2.0 // indirect
 	golang.org/x/image v0.1.0 // indirect
 	golang.org/x/sys v0.1.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
