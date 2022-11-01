@@ -170,6 +170,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	})
 
 	pass := glitch.NewRenderPass(shader)
+	pass.SoftwareSort = glitch.SoftwareSortY
 	tilemapPass := glitch.NewRenderPass(shader)
 
 	tmap := mmo.LoadGame(world)
@@ -277,8 +278,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	panelSprite.Scale = 8
 	textInputString := ""
 
-	debugSprite, err := spritesheet.Get("ui_panel0.png")
-	if err != nil { panic(err) }
+	// debugSprite, err := spritesheet.Get("ui_panel0.png")
+	// if err != nil { panic(err) }
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
@@ -311,15 +312,15 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			client.PlayAnimations(pass, world, dt)
 
 			// Debug. Draw neworking position buffer
-			{
-				ecs.Map2(world, func(id ecs.Id, t *physics.Transform, nt *client.NextTransform) {
+			// {
+			// 	ecs.Map2(world, func(id ecs.Id, t *physics.Transform, nt *client.NextTransform) {
 
-					npos := nt.PhyTrans
-					mat := glitch.Mat4Ident
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(npos.X), float32(npos.Y + npos.Height), 0)
-					debugSprite.Draw(pass, mat)
-				})
-			}
+			// 		npos := nt.PhyTrans
+			// 		mat := glitch.Mat4Ident
+			// 		mat.Scale(0.5, 0.5, 1.0).Translate(float32(npos.X), float32(npos.Y + npos.Height), 0)
+			// 		debugSprite.Draw(pass, mat)
+			// 	})
+			// }
 
 			// Draw speech bubbles
 			{

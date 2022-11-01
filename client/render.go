@@ -35,6 +35,7 @@ func SetSpeech(world *ecs.World, atlas *glitch.Atlas, id ecs.Id, message string)
 type Animation struct {
 	Body *render.Animation
 	Hat *render.Animation
+	batch *glitch.Batch
 }
 
 func (a *Animation) SetAnimation(name string) {
@@ -46,14 +47,19 @@ func (a *Animation) SetAnimation(name string) {
 
 func PlayAnimations(pass *glitch.RenderPass, world *ecs.World, dt time.Duration) {
 	ecs.Map2(world, func(id ecs.Id, anim *Animation, t *physics.Transform) {
+		if anim.batch == nil {
+			anim.batch = glitch.NewBatch()
+		}
+
 		anim.Body.Update(dt)
 		anim.Hat.Update(dt)
 
-		anim.Body.Draw(pass, t)
+		// TODO - minor optimization opportunity: Don't batch every frame, only the frames that change
+		anim.batch.Clear()
+		anim.Body.Draw(anim.batch, &physics.Transform{})
 
-		hatPoint := *t
-		// hatPoint.X += float64(anim.Offset[0])
-		// hatPoint.Y += float64(anim.Offset[1])
+		hatPoint := physics.Transform{}
+
 		frame := anim.Body.GetFrame()
 		mountPoint := frame.Mount("hat")
 		hatPoint.X += float64(mountPoint[0])
@@ -64,12 +70,11 @@ func PlayAnimations(pass *glitch.RenderPass, world *ecs.World, dt time.Duration)
 		hatPoint.X -= float64(hatDestPoint[0])
 		hatPoint.Y -= float64(hatDestPoint[1])
 
-		// mountPoint, ok := frame.Mount["hat"]
-		// if ok {
-		// 	hatPoint.X += float64(mountPoint[0])
-		// 	hatPoint.Y += float64(mountPoint[1])
-		// }
-		anim.Hat.Draw(pass, &hatPoint)
+		anim.Hat.Draw(anim.batch, &hatPoint)
+
+		mat := glitch.Mat4Ident
+		mat.Translate(float32(t.X), float32(t.Y + t.Height), 0)
+		anim.batch.Draw(pass, mat)
 	})
 }
 
