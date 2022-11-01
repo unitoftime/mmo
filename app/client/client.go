@@ -215,12 +215,27 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				}
 			})
 		}},
-		ecs.System{"BodyToSprite", func(dt time.Duration) {
+		ecs.System{"BodySetup", func(dt time.Duration) {
 			ecs.Map(world, func(id ecs.Id, body *game.Body) {
+				// Body to animation
 				_, ok := ecs.Read[client.Animation](world, id)
 				if !ok {
 					ecs.Write(world, id,
 						ecs.C(client.NewAnimation(load, spritesheet, *body)),
+					)
+				}
+
+				// Body to collider
+				_, ok = ecs.Read[physics.CircleCollider](world, id)
+				if !ok {
+					// TODO - hardcoded here and in network.go - Centralize character creation
+					// TODO - arbitrary collider radius 8
+					collider := physics.NewCircleCollider(8)
+					collider.Layer = mmo.BodyLayer
+					collider.HitLayer = mmo.BodyLayer
+					ecs.Write(world, id,
+						ecs.C(collider),
+						ecs.C(physics.NewColliderCache()),
 					)
 				}
 			})

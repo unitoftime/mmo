@@ -178,6 +178,11 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 			log.Print("Server: serdes.ClientLogin")
 			// Login player
 			id := world.NewId()
+
+			// TODO - hardcoded here and in client.go - Centralize character creation
+			collider := physics.NewCircleCollider(8)
+			collider.Layer = BodyLayer
+			collider.HitLayer = BodyLayer
 			trustedLogin := serdes.WorldUpdate{
 				WorldData: map[ecs.Id][]ecs.Component{
 					id: []ecs.Component{
@@ -189,6 +194,8 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 						ecs.C(game.Body{uint32(rand.Intn(game.NumBodyTypes))}),
 						ecs.C(game.Speech{}),
 						ecs.C(SpawnPoint()),
+						ecs.C(collider),
+						ecs.C(physics.NewColliderCache()),
 					},
 				},
 			}

@@ -20,6 +20,12 @@ var seed int64 = 12345
 var mapSize int = 100
 var tileSize int = 16
 
+const (
+	NoLayer physics.CollisionLayer = 0
+	BodyLayer physics.CollisionLayer = 1 << iota
+	WallLayer
+)
+
 // This represents global player data on the client
 type PlayerData struct {
 	mu sync.RWMutex
@@ -209,9 +215,21 @@ func CreateServerSystems(world *ecs.World, server *Server, networkChannel chan s
 	// serverSystems = append(serverSystems,
 	// 	CreatePhysicsSystems(world)...)
 	serverSystems = append(serverSystems,
-		ecs.System{"HandleInput", func(dt time.Duration) {
-			physics.HandleInput(world, dt)
-		}})
+		ecs.System{"MoveCharacters", func(dt time.Duration) {
+			ecs.Map2(world, func(id ecs.Id, input *physics.Input, transform *physics.Transform) {
+				MoveCharacter(input, transform, dt)
+			})
+		}},
+		ecs.System{"CheckCollisions", func(dt time.Duration) {
+			// Set the collider position
+			ecs.Map2(world, func(id ecs.Id, transform *physics.Transform, col *physics.CircleCollider) {
+				col.CenterX = transform.X
+				col.CenterY = transform.Y
+			})
+
+			CheckCollisions(world)
+		}},
+	)
 
 	serverSystems = append(serverSystems, []ecs.System{
 		ecs.System{"ServerSendUpdate", func(dt time.Duration) {
@@ -220,6 +238,41 @@ func CreateServerSystems(world *ecs.World, server *Server, networkChannel chan s
 	}...)
 
 	return serverSystems
+}
+
+func MoveCharacter(input *physics.Input, transform *physics.Transform, dt time.Duration) {
+	// Note: 100 good starting point, 200 seemed like a good max
+	speed := 125.0
+
+	if input.Left {
+		transform.X -= speed * dt.Seconds()
+	}
+	if input.Right {
+		transform.X += speed * dt.Seconds()
+	}
+	if input.Up {
+		transform.Y += speed * dt.Seconds()
+	}
+	if input.Down {
+		transform.Y -= speed * dt.Seconds()
+	}
+}
+
+func CheckCollisions(world *ecs.World) {
+	// Detect all collisions
+	ecs.Map2(world, func(idA ecs.Id, colA *physics.CircleCollider, cacheA *physics.ColliderCache) {
+		cacheA.Clear()
+		ecs.Map2(world, func(idB ecs.Id, colB *physics.CircleCollider, cacheB *physics.ColliderCache) {
+			if idA == idB { return } // Skip if collider is the same entity
+
+			if !colA.LayerMask(colB.Layer) { return } // Skip if layer mask doesn't match
+
+			// Check if there is a collision
+			if colA.Collides(1.0, colB) {
+				cacheA.Add(idB)
+			}
+		})
+	})
 }
 
 type LastUpdate struct {

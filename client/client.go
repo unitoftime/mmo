@@ -40,7 +40,7 @@ func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.Pl
 			if !transform.Replayed {
 				if !ok { return } // Skip if player doesn't have a transform
 				for i := range inputBuffer {
-					physics.BasicMMOPhysics(&inputBuffer[i], &transform.PhyTrans, ecs.FixedTimeStep)
+					mmo.MoveCharacter(&inputBuffer[i], &transform.PhyTrans, ecs.FixedTimeStep)
 				}
 				transform.Replayed = true
 				ecs.Write(world, playerId, ecs.C(transform))
@@ -67,10 +67,20 @@ func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.Pl
 	}
 
 	physicsSystems := []ecs.System{
-		ecs.System{"HandleInput", func(dt time.Duration) {
+		ecs.System{"MoveCharacters", func(dt time.Duration) {
 			ecs.Map2(world, func(id ecs.Id, input *physics.Input, nextTrans *NextTransform) {
-				physics.BasicMMOPhysics(input, &nextTrans.PhyTrans, dt)
+				mmo.MoveCharacter(input, &nextTrans.PhyTrans, dt)
 			})
+		}},
+		ecs.System{"SetupColliders", func(dt time.Duration) {
+			// Set the collider position
+			ecs.Map2(world, func(id ecs.Id, transform *NextTransform, col *physics.CircleCollider) {
+				col.CenterX = transform.PhyTrans.X
+				col.CenterY = transform.PhyTrans.Y
+			})
+		}},
+		ecs.System{"CheckCollisions", func(dt time.Duration) {
+			mmo.CheckCollisions(world)
 		}},
 	}
 	clientSystems = append(clientSystems, physicsSystems...)
