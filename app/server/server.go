@@ -25,7 +25,7 @@ func Main() {
 
 	// Load Game
 	world := ecs.NewWorld()
-	_ = mmo.LoadGame(world)
+	tilemap := mmo.LoadGame(world)
 
 	// This is the list of entities to get deleted
 	deleteList := mmo.NewDeleteList()
@@ -40,7 +40,7 @@ func Main() {
 		panic(err)
 	}
 
-	serverSystems := mmo.CreateServerSystems(world, server, networkChannel, deleteList)
+	serverSystems := mmo.CreateServerSystems(world, server, networkChannel, deleteList, tilemap)
 
 	quit := ecs.Signal{}
 	quit.Set(false)

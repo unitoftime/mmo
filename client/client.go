@@ -10,6 +10,7 @@ import (
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/render"
 	"github.com/unitoftime/flow/interp"
+	"github.com/unitoftime/flow/tile"
 	"github.com/unitoftime/glitch"
 	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/mmo/game"
@@ -27,7 +28,7 @@ type NextTransform struct {
 // 	buffer []physics.Transform
 // }
 
-func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.PlayerData) []ecs.System {
+func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.PlayerData, tilemap *tile.Tilemap) []ecs.System {
 	clientSystems := []ecs.System{
 		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
 			ClientSendUpdate(world, sock, playerData)
@@ -37,10 +38,12 @@ func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.Pl
 			inputBuffer := playerData.GetInputBuffer()
 			playerId := playerData.Id()
 			transform, ok := ecs.Read[NextTransform](world, playerId)
+			if !ok { return } // Skip if player doesn't have a transform
+			collider, ok := ecs.Read[physics.CircleCollider](world, playerId)
+			if !ok { return } // Skip if player doesn't have a collider
 			if !transform.Replayed {
-				if !ok { return } // Skip if player doesn't have a transform
 				for i := range inputBuffer {
-					mmo.MoveCharacter(&inputBuffer[i], &transform.PhyTrans, ecs.FixedTimeStep)
+					mmo.MoveCharacter(&inputBuffer[i], &transform.PhyTrans, &collider, tilemap, ecs.FixedTimeStep)
 				}
 				transform.Replayed = true
 				ecs.Write(world, playerId, ecs.C(transform))
@@ -68,8 +71,8 @@ func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.Pl
 
 	physicsSystems := []ecs.System{
 		ecs.System{"MoveCharacters", func(dt time.Duration) {
-			ecs.Map2(world, func(id ecs.Id, input *physics.Input, nextTrans *NextTransform) {
-				mmo.MoveCharacter(input, &nextTrans.PhyTrans, dt)
+			ecs.Map3(world, func(id ecs.Id, input *physics.Input, nextTrans *NextTransform, collider *physics.CircleCollider) {
+				mmo.MoveCharacter(input, &nextTrans.PhyTrans, collider, tilemap, dt)
 			})
 		}},
 		ecs.System{"SetupColliders", func(dt time.Duration) {

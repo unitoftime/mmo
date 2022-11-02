@@ -8,6 +8,9 @@ import (
 )
 
 
+type TileObject struct {
+}
+
 const NumBodyTypes = 4
 type Body struct {
 	Type uint32

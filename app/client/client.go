@@ -173,7 +173,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	pass.SoftwareSort = glitch.SoftwareSortY
 	tilemapPass := glitch.NewRenderPass(shader)
 
-	tmap := mmo.LoadGame(world)
+	tilemap := mmo.LoadGame(world)
 
 	grassTile, err := spritesheet.Get("grass0.png")
 	if err != nil { panic(err) }
@@ -181,7 +181,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	if err != nil { panic(err) }
 	waterTile, err := spritesheet.Get("water0.png")
 	if err != nil { panic(err) }
-	log.Print(*waterTile)
+	wallSprite, err := spritesheet.Get("wall0.png")
+	if err != nil { panic(err) }
 
 	tmapRender := render.NewTilemapRender(spritesheet, map[tile.TileType]*glitch.Sprite{
 		mmo.GrassTile: grassTile,
@@ -190,7 +191,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	}, tilemapPass)
 
 	tmapRender.Clear()
-	tmapRender.Batch(tmap)
+	tmapRender.Batch(tilemap)
 
 	textInputMode := false
 
@@ -217,6 +218,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		}},
 		ecs.System{"BodySetup", func(dt time.Duration) {
 			ecs.Map(world, func(id ecs.Id, body *game.Body) {
+				// TODO - is there a way to not have to poll these each frame?
 				// Body to animation
 				_, ok := ecs.Read[client.Animation](world, id)
 				if !ok {
@@ -236,6 +238,16 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					ecs.Write(world, id,
 						ecs.C(collider),
 						ecs.C(physics.NewColliderCache()),
+					)
+				}
+			})
+
+			// Tile objects?
+			ecs.Map(world, func(id ecs.Id, body *game.TileObject) {
+				_, ok := ecs.Read[render.Sprite](world, id)
+				if !ok {
+					ecs.Write(world, id,
+						ecs.C(render.NewSprite(wallSprite)),
 					)
 				}
 			})
@@ -286,7 +298,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		}},
 	}
 
-	physicsSystems := client.CreateClientSystems(world, sock, playerData)
+	physicsSystems := client.CreateClientSystems(world, sock, playerData, tilemap)
 
 	panelSprite, err := spritesheet.GetNinePanel("ui_panel0.png", glitch.R(2, 2, 2, 2))
 	if err != nil { panic(err) }

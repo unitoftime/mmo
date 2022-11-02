@@ -12,7 +12,7 @@ import (
 	"github.com/unitoftime/flow/tile"
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/pgen"
-	// "github.com/unitoftime/mmo/game"
+	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/mmo/serdes"
 )
 
@@ -131,6 +131,28 @@ func LoadGame(world *ecs.World) *tile.Tilemap {
 	// Create Tilemap
 	tmap := CreateTilemap(seed, mapSize, tileSize)
 
+	collider := physics.NewCircleCollider(8)
+	collider.Layer = WallLayer
+	collider.HitLayer = BodyLayer
+
+	for i := 0; i < 5; i++ {
+		posX, posY := tmap.TileToPosition(tile.TilePosition{mapSize/2 + 5, mapSize/2 + i})
+
+		id := world.NewId()
+		ecs.Write(world, id,
+			ecs.C(game.TileObject{}),
+			ecs.C(tile.Collider{1,1}),
+			ecs.C(physics.Transform{
+				X: float64(posX),
+				Y: float64(posY),
+			}),
+			ecs.C(collider),
+			ecs.C(physics.NewColliderCache()),
+		)
+	}
+
+	tmap.RecalculateEntities(world)
+
 	return tmap
 }
 
@@ -207,7 +229,7 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tile.Tilemap {
 // 	return physicsSystems
 // }
 
-func CreateServerSystems(world *ecs.World, server *Server, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) []ecs.System {
+func CreateServerSystems(world *ecs.World, server *Server, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList, tilemap *tile.Tilemap) []ecs.System {
 	serverSystems := []ecs.System{
 		CreatePollNetworkSystem(world, networkChannel),
 	}
@@ -216,8 +238,8 @@ func CreateServerSystems(world *ecs.World, server *Server, networkChannel chan s
 	// 	CreatePhysicsSystems(world)...)
 	serverSystems = append(serverSystems,
 		ecs.System{"MoveCharacters", func(dt time.Duration) {
-			ecs.Map2(world, func(id ecs.Id, input *physics.Input, transform *physics.Transform) {
-				MoveCharacter(input, transform, dt)
+			ecs.Map3(world, func(id ecs.Id, input *physics.Input, transform *physics.Transform, collider *physics.CircleCollider) {
+				MoveCharacter(input, transform, collider, tilemap, dt)
 			})
 		}},
 		ecs.System{"CheckCollisions", func(dt time.Duration) {
@@ -240,9 +262,19 @@ func CreateServerSystems(world *ecs.World, server *Server, networkChannel chan s
 	return serverSystems
 }
 
-func MoveCharacter(input *physics.Input, transform *physics.Transform, dt time.Duration) {
+func MoveCharacter(input *physics.Input, transform *physics.Transform, collider *physics.CircleCollider, tilemap *tile.Tilemap, dt time.Duration) {
 	// Note: 100 good starting point, 200 seemed like a good max
 	speed := 125.0
+
+	tile, ok := tilemap.Get(tilemap.PositionToTile(float32(transform.X), float32(transform.Y)))
+	if ok {
+		if tile.Type == WaterTile {
+			// Slow the player down if they're on water tile
+			speed = speed / 2.0
+		}
+	}
+
+	// oldTransform := *transform
 
 	if input.Left {
 		transform.X -= speed * dt.Seconds()
@@ -255,6 +287,62 @@ func MoveCharacter(input *physics.Input, transform *physics.Transform, dt time.D
 	}
 	if input.Down {
 		transform.Y -= speed * dt.Seconds()
+	}
+
+	// newTile, ok := tilemap.Get(tilemap.PositionToTile(float32(transform.X), float32(transform.Y)))
+	// if !ok {
+	// 	// If !ok then we've gone off the tilemap, just snap back to where we came from
+	// 	*transform = oldTransform
+	// }
+	// if newTile.Entity != ecs.InvalidEntity {
+	// 	*transform = oldTransform
+	// }
+
+
+	tilePos := tilemap.GetOverlappingTiles(transform.X, transform.Y, collider)
+	for i := range tilePos {
+		tile, ok := tilemap.Get(tilePos[i])
+
+		// If no tile exists there or there is any entity positioned on this tile,
+		// then just assume its collidable
+		if !ok || tile.Entity != ecs.InvalidEntity {
+			// *transform = oldTransform
+			// minX, minY, maxX, maxY := tilemap.BoundsAt(tilePos[i])
+			posX, posY := tilemap.TileToPosition(tilePos[i])
+
+			// resolveW := collider.Radius + float64(tilemap.TileSize[0]/2)
+			// resolveH := collider.Radius + float64(tilemap.TileSize[1]/2)
+
+			dx := transform.X - float64(posX)
+			dy := transform.Y - float64(posY)
+
+			// clamp
+			if dx > float64(tilemap.TileSize[0])/2 {
+				dx = float64(tilemap.TileSize[0])/2
+			} else if dx < -float64(tilemap.TileSize[0])/2 {
+				dx = -float64(tilemap.TileSize[0])/2
+			}
+			if dy > float64(tilemap.TileSize[1])/2 {
+				dy = float64(tilemap.TileSize[1])/2
+			} else if dy < -float64(tilemap.TileSize[1])/2 {
+				dy = -float64(tilemap.TileSize[1])/2
+			}
+
+			// Closest point
+			point := physics.V2(dx + float64(posX), dy + float64(posY))
+			center := physics.V2(transform.X, transform.Y)
+
+			dv := point.Sub(center)
+			response := dv.Norm().Scaled(dv.Len() - collider.Radius)
+
+			// Resolve
+			newCenter := center.Add(response)
+			if math.Abs(response.X) > math.Abs(response.Y) {
+				transform.X = newCenter.X
+			} else {
+				transform.Y = newCenter.Y
+			}
+		}
 	}
 }
 
@@ -273,6 +361,13 @@ func CheckCollisions(world *ecs.World) {
 			}
 		})
 	})
+
+	// // Resolve Collisions
+	// ecs.Map2(world, func(id ecs.Id, transform *physics.Transform, collider *physics.CircleCollider, cache *physics.ColliderCache) {
+	// 	for _, targetId := range cache.Current {
+	// 		targetCollider := ecs.Read[physics.CircleCollider](world, targetId)
+	// 	}
+	// })
 }
 
 type LastUpdate struct {
