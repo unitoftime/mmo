@@ -95,7 +95,6 @@ func (p *PlayerData) GetInputBuffer() []physics.Input {
 	return p.inputBuffer
 }
 
-
 // Returns the message as sent to the server
 // TODO - if the player sends another message fast enough, it could blank out their first message
 // func (p *PlayerData) SendMessage(msg string) string {
@@ -131,29 +130,84 @@ func LoadGame(world *ecs.World) *tile.Tilemap {
 	// Create Tilemap
 	tmap := CreateTilemap(seed, mapSize, tileSize)
 
-	collider := physics.NewCircleCollider(8)
-	collider.Layer = WallLayer
-	collider.HitLayer = BodyLayer
+	walls := []tile.TilePosition{
+		// North wall
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 + 5},
+		tile.TilePosition{mapSize/2 + 4, mapSize/2 + 5},
+		tile.TilePosition{mapSize/2 + 3, mapSize/2 + 5},
+		tile.TilePosition{mapSize/2 + 2, mapSize/2 + 5},
+		tile.TilePosition{mapSize/2 + 1, mapSize/2 + 5},
+		tile.TilePosition{mapSize/2 + 0, mapSize/2 + 5},
 
-	for i := 0; i < 5; i++ {
-		posX, posY := tmap.TileToPosition(tile.TilePosition{mapSize/2 + 5, mapSize/2 + i})
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 + 5},
+		tile.TilePosition{mapSize/2 - 4, mapSize/2 + 5},
+		tile.TilePosition{mapSize/2 - 3, mapSize/2 + 5},
+		tile.TilePosition{mapSize/2 - 2, mapSize/2 + 5},
+		tile.TilePosition{mapSize/2 - 1, mapSize/2 + 5},
 
-		id := world.NewId()
-		ecs.Write(world, id,
-			ecs.C(game.TileObject{}),
-			ecs.C(tile.Collider{1,1}),
-			ecs.C(physics.Transform{
-				X: float64(posX),
-				Y: float64(posY),
-			}),
-			ecs.C(collider),
-			ecs.C(physics.NewColliderCache()),
-		)
+		// South wall(ish)
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 - 5},
+		tile.TilePosition{mapSize/2 + 4, mapSize/2 - 5},
+		tile.TilePosition{mapSize/2 + 3, mapSize/2 - 5},
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 - 5},
+		tile.TilePosition{mapSize/2 - 4, mapSize/2 - 5},
+		tile.TilePosition{mapSize/2 - 3, mapSize/2 - 5},
+
+		// East Wall
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 + 4},
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 + 3},
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 + 2},
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 + 1},
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 + 0},
+
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 - 1},
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 - 2},
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 - 3},
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 - 4},
+		tile.TilePosition{mapSize/2 + 5, mapSize/2 - 5},
+
+		// West Wall
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 + 4},
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 + 3},
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 + 2},
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 + 1},
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 + 0},
+
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 - 1},
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 - 2},
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 - 3},
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 - 4},
+		tile.TilePosition{mapSize/2 - 5, mapSize/2 - 5},
+	}
+	for _, pos := range walls {
+		addWall(world, tmap, pos)
 	}
 
 	tmap.RecalculateEntities(world)
 
 	return tmap
+}
+
+func addWall(world *ecs.World, tilemap *tile.Tilemap, pos tile.TilePosition) {
+	posX, posY := tilemap.TileToPosition(pos)
+
+	id := world.NewId()
+
+	// TODO - make square collider
+	collider := physics.NewCircleCollider(8)
+	collider.Layer = WallLayer
+	collider.HitLayer = BodyLayer
+
+	ecs.Write(world, id,
+		ecs.C(game.TileObject{}),
+		ecs.C(tile.Collider{1,1}),
+		ecs.C(physics.Transform{
+			X: float64(posX),
+			Y: float64(posY),
+		}),
+		ecs.C(collider),
+		ecs.C(physics.NewColliderCache()),
+	)
 }
 
 // Represents a logged in user on the server
@@ -316,16 +370,24 @@ func MoveCharacter(input *physics.Input, transform *physics.Transform, collider 
 			dx := transform.X - float64(posX)
 			dy := transform.Y - float64(posY)
 
-			// clamp
-			if dx > float64(tilemap.TileSize[0])/2 {
-				dx = float64(tilemap.TileSize[0])/2
-			} else if dx < -float64(tilemap.TileSize[0])/2 {
-				dx = -float64(tilemap.TileSize[0])/2
+			// Check if they are even still colliding (this fact may change after one tile gets resolved)
+			// TODO - this should cleanup, I need some rect and circle primitives to do these checks with. Basically if the distance in the X and the Y are both larger than the circle radius plus the tileSize/2. Then the circle is already outside the bounds
+			// log.Print("Math ", math.Abs(dx), collider.Radius + float64(tilemap.TileSize[0]/2), math.Abs(dy), collider.Radius + float64(tilemap.TileSize[1]/2))
+			// TODO - Should I add any thresholding here? I think most of the time the floats are like exactly the same
+			if math.Abs(dx) >= collider.Radius + float64(tilemap.TileSize[0]/2) || math.Abs(dy) >= collider.Radius + float64(tilemap.TileSize[1]/2) {
+				continue // Skip if the circle is no longer overlapping this tile
 			}
-			if dy > float64(tilemap.TileSize[1])/2 {
-				dy = float64(tilemap.TileSize[1])/2
-			} else if dy < -float64(tilemap.TileSize[1])/2 {
-				dy = -float64(tilemap.TileSize[1])/2
+
+			// clamp
+			if dx > float64(tilemap.TileSize[0]/2) {
+				dx = float64(tilemap.TileSize[0]/2)
+			} else if dx < -float64(tilemap.TileSize[0]/2) {
+				dx = -float64(tilemap.TileSize[0]/2)
+			}
+			if dy > float64(tilemap.TileSize[1]/2) {
+				dy = float64(tilemap.TileSize[1]/2)
+			} else if dy < -float64(tilemap.TileSize[1]/2) {
+				dy = -float64(tilemap.TileSize[1]/2)
 			}
 
 			// Closest point
@@ -337,7 +399,7 @@ func MoveCharacter(input *physics.Input, transform *physics.Transform, collider 
 
 			// Resolve
 			newCenter := center.Add(response)
-			if math.Abs(response.X) > math.Abs(response.Y) {
+			if math.Abs(response.X) >= math.Abs(response.Y) {
 				transform.X = newCenter.X
 			} else {
 				transform.Y = newCenter.Y
