@@ -180,7 +180,7 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 			id := world.NewId()
 
 			// TODO - hardcoded here and in client.go - Centralize character creation
-			collider := physics.NewCircleCollider(8)
+			collider := physics.NewCircleCollider(6)
 			collider.Layer = BodyLayer
 			collider.HitLayer = BodyLayer
 			trustedLogin := serdes.WorldUpdate{

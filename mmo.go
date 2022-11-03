@@ -198,12 +198,14 @@ func addWall(world *ecs.World, tilemap *tile.Tilemap, pos tile.TilePosition) {
 	collider.Layer = WallLayer
 	collider.HitLayer = BodyLayer
 
+	// log.Print(math.Round(float64(posX)), math.Round(float64(posY)))
+
 	ecs.Write(world, id,
 		ecs.C(game.TileObject{}),
 		ecs.C(tile.Collider{1,1}),
 		ecs.C(physics.Transform{
-			X: float64(posX),
-			Y: float64(posY),
+			X: math.Round(float64(posX)),
+			Y: math.Round(float64(posY)),
 		}),
 		ecs.C(collider),
 		ecs.C(physics.NewColliderCache()),

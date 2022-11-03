@@ -54,6 +54,8 @@ func Main(config Config) {
 func launch() {
 	win, err := glitch.NewWindow(1920, 1080, "MMO", glitch.WindowConfig{
 		Vsync: true,
+		// Fullscreen: true,
+		// Samples: 4,
 	})
 	if err != nil {
 		panic(err)
@@ -61,7 +63,7 @@ func launch() {
 
 	load := asset.NewLoad(fs)
 	// load := asset.NewLoad(os.DirFS("http://localhost:8081"))
-	spritesheet, err := load.Spritesheet("assets/spritesheet.json", false)
+	spritesheet, err := load.Spritesheet("assets/spritesheet.json", false) // TODO - does this need to be false or true?
 	if err != nil {
 		panic(err)
 	}
@@ -69,6 +71,8 @@ func launch() {
 	atlas, err := glitch.DefaultAtlas()
 	if err != nil { panic(err) }
 
+	// Note: If you want fractional zooming, you can use pixelartshader, else if you do x2 zooming, you can use spriteshader
+	// shader, err := glitch.NewShader(shaders.PixelArtShader)
 	shader, err := glitch.NewShader(shaders.SpriteShader)
 	if err != nil { panic(err) }
 
@@ -201,7 +205,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	group := ui.NewGroup(win, screenCamera, atlas)
 
 	camera := render.NewCamera(win.Bounds(), 0, 0)
-	zoomSpeed := 0.1
+	// zoomSpeed := 1.0
 	quit := ecs.Signal{}
 	quit.Set(false)
 
@@ -231,8 +235,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				_, ok = ecs.Read[physics.CircleCollider](world, id)
 				if !ok {
 					// TODO - hardcoded here and in network.go - Centralize character creation
-					// TODO - arbitrary collider radius 8
-					collider := physics.NewCircleCollider(8)
+					// TODO - arbitrary collider radius 6
+					collider := physics.NewCircleCollider(6)
 					collider.Layer = mmo.BodyLayer
 					collider.HitLayer = mmo.BodyLayer
 					ecs.Write(world, id,
@@ -255,8 +259,18 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		ecs.System{"MouseInput", func(dt time.Duration) {
 			// TODO - move to other system
 			_, scrollY := win.MouseScroll()
-			if scrollY != 0 {
-				camera.Zoom += zoomSpeed * scrollY
+
+			const minZoom = 1
+			const maxZoom = 16.0
+
+			if scrollY > 0 {
+				if camera.Zoom < maxZoom {
+					camera.Zoom = camera.Zoom * 2
+				}
+			} else if scrollY < 0 {
+				if camera.Zoom > minZoom {
+					camera.Zoom = camera.Zoom / 2
+				}
 			}
 		}},
 		ecs.System{"CaptureInput", func(dt time.Duration) {
