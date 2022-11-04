@@ -7,6 +7,7 @@ import (
 	"time"
 	// "fmt"
 	"embed"
+	// "math"
 
 	"flag"
 
@@ -173,6 +174,15 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		return client.ClientReceive(sock, playerData, networkChannel)
 	})
 
+	// TODO! - breaks resizing
+	renderBounds := win.Bounds()
+	renderBounds.Min[0] -= 1
+	renderBounds.Min[1] -= 1
+	renderBounds.Max[0] += 1
+	renderBounds.Max[1] += 1
+	frame := glitch.NewFrame(renderBounds, false)
+	windowPass := glitch.NewRenderPass(shader)
+
 	pass := glitch.NewRenderPass(shader)
 	pass.SoftwareSort = glitch.SoftwareSortY
 	tilemapPass := glitch.NewRenderPass(shader)
@@ -185,6 +195,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	if err != nil { panic(err) }
 	waterTile, err := spritesheet.Get("water0.png")
 	if err != nil { panic(err) }
+	concreteTile, err := spritesheet.Get("concrete0.png")
+	if err != nil { panic(err) }
 	wallSprite, err := spritesheet.Get("wall0.png")
 	if err != nil { panic(err) }
 
@@ -192,6 +204,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		mmo.GrassTile: grassTile,
 		mmo.DirtTile: dirtTile,
 		mmo.WaterTile: waterTile,
+		mmo.ConcreteTile: concreteTile,
 	}, tilemapPass)
 
 	tmapRender.Clear()
@@ -339,7 +352,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			// 	camera.Position = glitch.Vec2{float32(transform.X), float32(transform.Y)}
 			// })
 
-			camera.Update(win.Bounds())
+			// camera.Update(win.Bounds())
+			camera.Update(renderBounds)
 		}},
 		ecs.System{"Draw", func(dt time.Duration) {
 			glitch.Clear(win, glitch.RGBA{0, 0, 0, 1.0})
@@ -403,14 +417,31 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				})
 			}
 
-			// win.SetMatrix(pixel.IM)
+			glitch.Clear(frame, glitch.RGBA{0, 0, 0, 0})
+
 			tilemapPass.SetUniform("projection", camera.Camera.Projection)
-			tilemapPass.SetUniform("view", camera.Camera.View)
-			tilemapPass.Draw(win)
+			tilemapPass.SetUniform("view", camera.Camera.ViewSnapped)
+			tilemapPass.Draw(frame)
 
 			pass.SetUniform("projection", camera.Camera.Projection)
-			pass.SetUniform("view", camera.Camera.View)
-			pass.Draw(win)
+			pass.SetUniform("view", camera.Camera.ViewSnapped)
+			pass.Draw(frame)
+
+			windowPass.Clear()
+			windowPass.SetUniform("projection", glitch.Mat4Ident)
+			windowPass.SetUniform("view", glitch.Mat4Ident)
+
+			mat := glitch.Mat4Ident
+			vvx, vvy, _ := camera.Camera.View.GetTranslation()
+			vsx, vsy, _ := camera.Camera.ViewSnapped.GetTranslation()
+			xx := vvx - vsx
+			yy := vvy - vsy
+			h := win.Bounds().H()
+			w := win.Bounds().W()
+			// log.Print(camera.Position, xx, yy)
+			mat.Translate(float32(xx / w), float32(yy / h), 0)
+			frame.Draw(windowPass, mat)
+			windowPass.Draw(win)
 
 			// Draw UI
 			ui.Clear()

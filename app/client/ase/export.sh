@@ -32,7 +32,7 @@ do
 done
 
 # Exporting without using tags
-filenames=(dirt grass water wall)
+filenames=(dirt grass water concrete wall)
 for file in ${filenames[@]}
 do
     aseprite -b ase/${file}.ase --save-as ase/images/${file}{frame}.png

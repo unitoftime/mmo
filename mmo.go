@@ -228,6 +228,7 @@ const (
 	GrassTile tile.TileType = iota
 	DirtTile
 	WaterTile
+	ConcreteTile
 )
 
 func CreateTilemap(seed int64, mapSize, tileSize int) *tile.Tilemap {
@@ -267,6 +268,11 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tile.Tilemap {
 				tiles[x][y] = tile.Tile{DirtTile, 0, ecs.InvalidEntity}
 			} else {
 				tiles[x][y] = tile.Tile{GrassTile, 0, ecs.InvalidEntity}
+			}
+
+			mid := mapSize/2
+			if x <= mid+5 && x >= mid-5 && y <= mid+5 && y >= mid-5 {
+				tiles[x][y] = tile.Tile{ConcreteTile, 0, ecs.InvalidEntity}
 			}
 		}
 	}

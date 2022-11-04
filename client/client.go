@@ -63,6 +63,7 @@ func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.Pl
 			// This interpolates the transform position based on what the server just said it was
 			ecs.Map2(world, func(id ecs.Id, phyT *physics.Transform, nextT *NextTransform) {
 				interpFactor := 0.1
+				// interpFactor := 1.0
 				phyT.X = interp.Linear.Float64(phyT.X, nextT.PhyTrans.X, interpFactor)
 				phyT.Y = interp.Linear.Float64(phyT.Y, nextT.PhyTrans.Y, interpFactor)
 			})

@@ -311,6 +311,8 @@ github.com/unitoftime/glfw v0.0.0-20221017123037-4b328bb54278 h1:S35een8CLthiZws
 github.com/unitoftime/glfw v0.0.0-20221017123037-4b328bb54278/go.mod h1:L6WnuyA8vluzk1c8a8BAxk1TEOtzPbyI3n7l8VlJ+7M=
 github.com/unitoftime/glitch v0.0.0-20221022112833-f053fb856390 h1:pjypaFfj6SiykXqKHPNtuhAYhhoZtydGSfDjEdhwZCU=
 github.com/unitoftime/glitch v0.0.0-20221022112833-f053fb856390/go.mod h1:vAYoHRoPehnYNyGFwAaXMhog+Vcx+wkS8UpxX2ldt98=
+github.com/unitoftime/glitch v0.0.0-20221104173717-c1f56c37c0b8 h1:x5xGhgJPwGW5dGWp37hxreHTYRhqYT/qTFporivzxlw=
+github.com/unitoftime/glitch v0.0.0-20221104173717-c1f56c37c0b8/go.mod h1:FW4ihyCbn99C3m4qhXcKM0Vmdheg/4dzqx9OvO/zEW0=
 github.com/unitoftime/packer v0.0.0-20221025144022-f735c2d94be9 h1:KJR8iqQ6hNfmWbNyHt1oMTNBPPt6/0yrSigXu5o3br0=
 github.com/unitoftime/packer v0.0.0-20221025144022-f735c2d94be9/go.mod h1:x6IcVVrbVuX1lJo6tJHBUC3ym+5Ssf/sxqcXPCKwXXs=
 github.com/yuin/goldmark v1.1.25/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
