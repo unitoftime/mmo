@@ -61,7 +61,15 @@ func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.Pl
 			})
 
 			// This interpolates the transform position based on what the server just said it was
+			const maxInterp float64 = 5 * 16.0
 			ecs.Map2(world, func(id ecs.Id, phyT *physics.Transform, nextT *NextTransform) {
+				// Snap, rather than interpolate if the distance is large enough
+				if phyT.DistanceTo(&nextT.PhyTrans) > maxInterp {
+					phyT.X = nextT.PhyTrans.X
+					phyT.Y = nextT.PhyTrans.Y
+					return
+				}
+
 				interpFactor := 0.1
 				// interpFactor := 1.0
 				phyT.X = interp.Linear.Float64(phyT.X, nextT.PhyTrans.X, interpFactor)
