@@ -415,10 +415,10 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					mat := glitch.Mat4Ident
 					mat.Scale(scale, scale, 1.0).Translate(float32(t.X), float32(t.Y + t.Height), 0)
 					bounds := speech.Text.Bounds()
-					mat.Translate(scale * (-bounds.W()/2), 15, 0) // TODO - 15 should come from the body height of the character (probably divided by 2)
+					mat.Translate(scale * (-bounds.W()/2), 25, 0) // TODO - 25 should come from the body height of the character (plus the font descent, or maybe half text line height)
 
 					col := glitch.RGBA{1, 1, 1, 1}
-					pass.SetLayer(100) // TODO setup layers for in world UI
+					pass.SetLayer(glitch.DefaultLayer - 1) // TODO setup layers for world UI
 					speech.Text.DrawColorMask(pass, mat, col)
 				})
 			}
