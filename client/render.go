@@ -160,6 +160,7 @@ func NewAnimation(load *asset.Load, spritesheet *asset.Spritesheet, body game.Bo
 	hatAnim := render.NewAnimation("idle_left", hatFrames)
 
 	return Animation{
+		Direction: "left",
 		Body: &bodyAnim,
 		Hat: &hatAnim,
 	}
