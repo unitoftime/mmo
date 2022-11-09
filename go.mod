@@ -8,8 +8,8 @@ require (
 	github.com/smallnest/goframe v1.0.0
 	github.com/unitoftime/binary v1.0.20
 	github.com/unitoftime/ecs v0.0.0-20220916124912-0589184b5397
-	github.com/unitoftime/flow v0.0.0-20221102162428-ceafa8eb9029
-	github.com/unitoftime/glitch v0.0.0-20221109123114-8f7f2d2a30ad
+	github.com/unitoftime/flow v0.0.0-20221109142329-5400c2d0ae3a
+	github.com/unitoftime/glitch v0.0.0-20221109160531-c62a94342259
 	github.com/unitoftime/packer v0.0.0-20221103211833-11c7601528ba
 	nhooyr.io/websocket v1.8.7
 )
