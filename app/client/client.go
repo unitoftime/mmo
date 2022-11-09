@@ -174,13 +174,11 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		return client.ClientReceive(sock, playerData, networkChannel)
 	})
 
-	// TODO! - breaks resizing
+	// Note: This requires a system to update the framebuffer if the window is resized. The system should essentially recreate the framebuffer with the new dimensions, This might be a good target for the framebuffer callback, but for now I'm just going to poll win.Bounds
 	renderBounds := win.Bounds()
-	renderBounds.Min[0] -= 1
-	renderBounds.Min[1] -= 1
-	renderBounds.Max[0] += 1
-	renderBounds.Max[1] += 1
+	renderBounds.Pad(glitch.R(1,1,1,1)) // Pad out by 1 pixel so that camera can drift inside pixels
 	frame := glitch.NewFrame(renderBounds, false)
+
 	windowPass := glitch.NewRenderPass(shader)
 
 	pass := glitch.NewRenderPass(shader)
@@ -336,6 +334,14 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	// if err != nil { panic(err) }
 
 	renderSystems := []ecs.System{
+		ecs.System{"UpdateFramebuffer", func(dt time.Duration) {
+			renderBounds := win.Bounds()
+			renderBounds.Pad(glitch.R(1,1,1,1)) // Pad out by 1 pixel so that camera can drift inside pixels
+			if frame.Bounds() != renderBounds {
+				// log.Print("recreating fbo: ", frame.Bounds(), renderBounds)
+				frame = glitch.NewFrame(renderBounds, false)
+			}
+		}},
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
 			transform, ok := ecs.Read[physics.Transform](world, playerData.Id())
 			if ok {
@@ -352,8 +358,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			// 	camera.Position = glitch.Vec2{float32(transform.X), float32(transform.Y)}
 			// })
 
-			// camera.Update(win.Bounds())
-			camera.Update(renderBounds)
+			camera.Update(win.Bounds())
+			// camera.Update(renderBounds)
 		}},
 		ecs.System{"Draw", func(dt time.Duration) {
 			glitch.Clear(win, glitch.RGBA{0, 0, 0, 1.0})
@@ -439,7 +445,10 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			h := win.Bounds().H()
 			w := win.Bounds().W()
 			// log.Print(camera.Position, xx, yy)
-			mat.Translate(float32(xx / w), float32(yy / h), 0)
+			scaleX := w / (w-2) // -2 b/c we pad on both sides for the fbo
+			scaleY := h / (h-2) // -2 b/c we pad on both sides for the fbo
+			mat.Translate(float32(xx / w), float32(yy / h), 0).
+				Scale(scaleX, scaleY, 1.0)
 			frame.Draw(windowPass, mat)
 			windowPass.Draw(win)
 
