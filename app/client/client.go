@@ -176,7 +176,6 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 
 	// Note: This requires a system to update the framebuffer if the window is resized. The system should essentially recreate the framebuffer with the new dimensions, This might be a good target for the framebuffer callback, but for now I'm just going to poll win.Bounds
 	renderBounds := win.Bounds()
-	renderBounds.Pad(glitch.R(1,1,1,1)) // Pad out by 1 pixel so that camera can drift inside pixels
 	frame := glitch.NewFrame(renderBounds, false)
 
 	windowPass := glitch.NewRenderPass(shader)
@@ -336,10 +335,11 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateFramebuffer", func(dt time.Duration) {
 			renderBounds := win.Bounds()
-			renderBounds.Pad(glitch.R(1,1,1,1)) // Pad out by 1 pixel so that camera can drift inside pixels
+			// TODO - how to determine 50?
+			renderBounds = renderBounds.Pad(glitch.R(50,50,50,50)) // Pad out by 50 pixel so that camera can drift inside pixels
 			if frame.Bounds() != renderBounds {
-				// log.Print("recreating fbo: ", frame.Bounds(), renderBounds)
 				frame = glitch.NewFrame(renderBounds, false)
+				log.Print("recreating fbo: ", frame.Bounds(), renderBounds, win.Bounds())
 			}
 		}},
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
@@ -434,22 +434,15 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			pass.Draw(frame)
 
 			windowPass.Clear()
-			windowPass.SetUniform("projection", glitch.Mat4Ident)
-			windowPass.SetUniform("view", glitch.Mat4Ident)
+			windowPass.SetUniform("projection", camera.Camera.Projection)
 
-			mat := glitch.Mat4Ident
 			vvx, vvy, _ := camera.Camera.View.GetTranslation()
 			vsx, vsy, _ := camera.Camera.ViewSnapped.GetTranslation()
-			xx := vvx - vsx
-			yy := vvy - vsy
-			h := win.Bounds().H()
-			w := win.Bounds().W()
-			// log.Print(camera.Position, xx, yy)
-			scaleX := w / (w-2) // -2 b/c we pad on both sides for the fbo
-			scaleY := h / (h-2) // -2 b/c we pad on both sides for the fbo
-			mat.Translate(float32(xx / w), float32(yy / h), 0).
-				Scale(scaleX, scaleY, 1.0)
-			frame.Draw(windowPass, mat)
+			mat := glitch.Mat4Ident
+			mat.Translate(float32(vvx - vsx), float32(vvy - vsy), 0)
+			windowPass.SetUniform("view", mat)
+
+			frame.Draw(windowPass, glitch.Mat4Ident)
 			windowPass.Draw(win)
 
 			// Draw UI
