@@ -33,6 +33,7 @@ func SetSpeech(world *ecs.World, atlas *glitch.Atlas, id ecs.Id, message string)
 }
 
 type Animation struct {
+	Direction string // indicates if we are going left or right
 	Body *render.Animation
 	Hat *render.Animation
 	batch *glitch.Batch

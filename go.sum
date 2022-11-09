@@ -304,8 +304,8 @@ github.com/unitoftime/flow v0.0.0-20221109142329-5400c2d0ae3a h1:5a1wxqBvQziHrZ4
 github.com/unitoftime/flow v0.0.0-20221109142329-5400c2d0ae3a/go.mod h1:18pyMSCo8xwVyIhs3jNuh6hGBzDgfj4DemSzg/Hz6/U=
 github.com/unitoftime/gl v0.0.0-20221010144157-ddeda43df375 h1:n94r8bZYjEdpvqPFhAavIcRXWDiG6+EOGaFGTWGU09U=
 github.com/unitoftime/gl v0.0.0-20221010144157-ddeda43df375/go.mod h1:4axEJ3yVNYEDixZANMK/gks8BuHAuve4Y6bit4F859A=
-github.com/unitoftime/glfw v0.0.0-20221108165149-b4d4a998285e h1:BIci4z2jsVdxBvYE8IIKurHgGljkiJxdvB3ozcDYRvo=
-github.com/unitoftime/glfw v0.0.0-20221108165149-b4d4a998285e/go.mod h1:iFo6o2VFaByuNpn0xxcPMze8A0fm36XQag8KK4T04OU=
+github.com/unitoftime/glfw v0.0.0-20221109201015-17c636a346cf h1:ekB/FL/cG+NIsGfPeadu4ZDm3J5n2ISF+6hRQlpAdRw=
+github.com/unitoftime/glfw v0.0.0-20221109201015-17c636a346cf/go.mod h1:iFo6o2VFaByuNpn0xxcPMze8A0fm36XQag8KK4T04OU=
 github.com/unitoftime/glitch v0.0.0-20221109195234-e97a7a3ff6e6 h1:PJFHcHB33slWDKjsh9HNQpDoJ9e3JV/vkfE2AeAWlGo=
 github.com/unitoftime/glitch v0.0.0-20221109195234-e97a7a3ff6e6/go.mod h1:FW4ihyCbn99C3m4qhXcKM0Vmdheg/4dzqx9OvO/zEW0=
 github.com/unitoftime/packer v0.0.0-20221103211833-11c7601528ba h1:KfxXaBmYeEbfvLYhcVGdZfKIuf5/VVJxPTLPCTVp+vg=

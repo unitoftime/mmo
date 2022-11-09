@@ -73,10 +73,11 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 	// TODO - When you do SOI code, and generate messages on a per player basis. You should also not include the speech bubble that the player just sent.
 	// Add relevant data to the world update
 	{
-		ecs.Map3(world, func(id ecs.Id, transform *physics.Transform, body *game.Body, speech *game.Speech) {
+		ecs.Map4(world, func(id ecs.Id, transform *physics.Transform, body *game.Body, speech *game.Speech, input *physics.Input) {
 			compList := []ecs.Component{
 				ecs.C(*transform),
 				ecs.C(*body),
+				ecs.C(*input),
 			}
 
 			if speech.HandleSent() {

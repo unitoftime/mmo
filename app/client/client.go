@@ -307,15 +307,17 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		ecs.System{"SetAnimationFromState", func(dt time.Duration) {
 			ecs.Map2(world, func(id ecs.Id, input *physics.Input, anim *client.Animation) {
 				if input.Left && !input.Right {
+					anim.Direction = "left"
 					anim.SetAnimation("run_left")
 				} else if input.Right && !input.Left {
+					anim.Direction = "right"
 					anim.SetAnimation("run_right")
 				} else if input.Up || input.Down {
-					anim.SetAnimation("run_left")
+					anim.SetAnimation("run_" + anim.Direction)
 				} else if input.Left && input.Right {
-					anim.SetAnimation("idle_left")
+					anim.SetAnimation("idle_" + anim.Direction)
 				} else {
-					anim.SetAnimation("idle_left")
+					anim.SetAnimation("idle_" + anim.Direction)
 				}
 			})
 		}},
@@ -338,7 +340,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			renderBounds = renderBounds.Pad(glitch.R(50,50,50,50)) // Pad out by 50 pixel so that camera can drift inside pixels
 			if frame.Bounds() != renderBounds {
 				frame = glitch.NewFrame(renderBounds, false)
-				log.Print("recreating fbo: ", frame.Bounds(), renderBounds, win.Bounds())
+				// log.Print("recreating fbo: ", frame.Bounds(), renderBounds, win.Bounds())
 			}
 		}},
 		ecs.System{"UpdateCamera", func(dt time.Duration) {

@@ -30,7 +30,7 @@ require (
 	github.com/stretchr/testify v1.8.0 // indirect
 	github.com/ungerik/go3d v0.0.0-20220309204530-55ced4bcb334 // indirect
 	github.com/unitoftime/gl v0.0.0-20221010144157-ddeda43df375 // indirect
-	github.com/unitoftime/glfw v0.0.0-20221108165149-b4d4a998285e // indirect
+	github.com/unitoftime/glfw v0.0.0-20221109201015-17c636a346cf // indirect
 	github.com/zyedidia/generic v1.2.0 // indirect
 	golang.org/x/image v0.1.0 // indirect
 	golang.org/x/sys v0.2.0 // indirect
