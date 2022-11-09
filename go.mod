@@ -9,8 +9,8 @@ require (
 	github.com/unitoftime/binary v1.0.20
 	github.com/unitoftime/ecs v0.0.0-20220916124912-0589184b5397
 	github.com/unitoftime/flow v0.0.0-20221102162428-ceafa8eb9029
-	github.com/unitoftime/glitch v0.0.0-20221104173717-c1f56c37c0b8
-	github.com/unitoftime/packer v0.0.0-20221025144022-f735c2d94be9
+	github.com/unitoftime/glitch v0.0.0-20221109123114-8f7f2d2a30ad
+	github.com/unitoftime/packer v0.0.0-20221103211833-11c7601528ba
 	nhooyr.io/websocket v1.8.7
 )
 
@@ -30,10 +30,10 @@ require (
 	github.com/stretchr/testify v1.8.0 // indirect
 	github.com/ungerik/go3d v0.0.0-20220309204530-55ced4bcb334 // indirect
 	github.com/unitoftime/gl v0.0.0-20221010144157-ddeda43df375 // indirect
-	github.com/unitoftime/glfw v0.0.0-20221017123037-4b328bb54278 // indirect
+	github.com/unitoftime/glfw v0.0.0-20221108165149-b4d4a998285e // indirect
 	github.com/zyedidia/generic v1.2.0 // indirect
 	golang.org/x/image v0.1.0 // indirect
-	golang.org/x/sys v0.1.0 // indirect
+	golang.org/x/sys v0.2.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/js/dom v0.0.0-20221001195520-26252dedbe70 // indirect
