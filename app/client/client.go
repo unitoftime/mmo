@@ -123,7 +123,6 @@ func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				menuRect := win.Bounds().SliceHorizontal(500).SliceVertical(500)
 				group.Panel(panelSprite, menuRect)
 
-				paddingRect := glitch.R(-10,-10,-10,-10)
 				buttonHeight := float32(50)
 				buttonWidth := float32(200)
 
@@ -134,7 +133,7 @@ func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 						runGame(win, load, spritesheet, shader, atlas)
 					}
 					group.SetColor(glitch.RGBA{0, 0, 0, 1})
-					group.Text("Play", buttonRect.Pad(paddingRect), glitch.Vec2{0.5, 0.5})
+					group.Text("Play", buttonRect.Unpad(buttonSprite.Border()), glitch.Vec2{0.5, 0.5})
 				}
 
 				// Exit button
@@ -144,7 +143,7 @@ func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 						quit.Set(true)
 					}
 					group.SetColor(glitch.RGBA{0, 0, 0, 1})
-					group.Text("Exit", buttonRect.Pad(paddingRect), glitch.Vec2{0.5, 0.5})
+					group.Text("Exit", buttonRect.Unpad(buttonSprite.Border()), glitch.Vec2{0.5, 0.5})
 				}
 
 				group.Draw()
@@ -415,7 +414,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					mat := glitch.Mat4Ident
 					mat.Scale(scale, scale, 1.0).Translate(float32(t.X), float32(t.Y + t.Height), 0)
 					bounds := speech.Text.Bounds()
-					mat.Translate(scale * (-bounds.W()/2), 25, 0) // TODO - 25 should come from the body height of the character (plus the font descent, or maybe half text line height)
+					mat.Translate(scale * (-bounds.W()/2), 15, 0) // TODO - 15 should come from the body height of the character (plus the font descent, or maybe half text line height)
 
 					col := glitch.RGBA{1, 1, 1, 1}
 					pass.SetLayer(glitch.DefaultLayer - 1) // TODO setup layers for world UI
