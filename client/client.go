@@ -80,7 +80,9 @@ func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.Pl
 
 	physicsSystems := []ecs.System{
 		ecs.System{"MoveCharacters", func(dt time.Duration) {
-			ecs.Map3(world, func(id ecs.Id, input *physics.Input, nextTrans *NextTransform, collider *physics.CircleCollider) {
+			// TODO - Note: Keybinds is only included so that clients don't simulate another client's input, I should isolate these another way
+			ecs.Map4(world, func(id ecs.Id, input *physics.Input, keybinds *render.Keybinds, nextTrans *NextTransform, collider *physics.CircleCollider) {
+			// ecs.Map3(world, func(id ecs.Id, input *physics.Input, nextTrans *NextTransform, collider *physics.CircleCollider) {
 				mmo.MoveCharacter(input, &nextTrans.PhyTrans, collider, tilemap, dt)
 			})
 		}},
@@ -191,8 +193,9 @@ func ClientReceive(sock *mnet.Socket, playerData *mmo.PlayerData, networkChannel
 			// This code just calls HandleSent() on the player's speech bubble if they just received their own speech bubble
 			compSlice, ok := t.WorldData[playerData.Id()]
 			if ok {
+				newCompSlice := make([]ecs.Component, 0)
 				// Pull out game.Speech for playerId
-				for i, c := range compSlice {
+				for _, c := range compSlice {
 					switch t := c.(type) {
 					case ecs.CompBox[game.Speech]:
 						msg := t.Get().Text
@@ -202,9 +205,16 @@ func ClientReceive(sock *mnet.Socket, playerData *mmo.PlayerData, networkChannel
 						}
 						speech.HandleSent()
 						// TODO - speech.HandleRender() - Would I ever use this to have the server send messages to the client?
-						compSlice[i] = ecs.C(speech)
+						// compSlice[i] = ecs.C(speech)
+						newCompSlice = append(newCompSlice, ecs.C(speech))
+					case ecs.CompBox[physics.Input]:
+						// If the server sent us back our own input, we just want to drop it, because we own that component
+						continue
+					default:
+						newCompSlice = append(newCompSlice, c)
 					}
 				}
+				compSlice = newCompSlice
 			}
 
 			for _, compSlice := range t.WorldData {
