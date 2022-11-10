@@ -73,7 +73,9 @@ func launch() {
 	if err != nil { panic(err) }
 
 	// Note: If you want fractional zooming, you can use pixelartshader, else if you do x2 zooming, you can use spriteshader
-	// shader, err := glitch.NewShader(shaders.PixelArtShader)
+	// pixelArtShader, err := glitch.NewShader(shaders.PixelArtShader)
+	// if err != nil { panic(err) }
+
 	shader, err := glitch.NewShader(shaders.SpriteShader)
 	if err != nil { panic(err) }
 
@@ -156,6 +158,9 @@ func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 }
 
 func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spritesheet, shader *glitch.Shader, atlas *glitch.Atlas) {
+	pixelArtShader, err := glitch.NewShader(shaders.PixelArtShader)
+	if err != nil { panic(err) }
+
 	world := ecs.NewWorld()
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
@@ -175,9 +180,9 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 
 	// Note: This requires a system to update the framebuffer if the window is resized. The system should essentially recreate the framebuffer with the new dimensions, This might be a good target for the framebuffer callback, but for now I'm just going to poll win.Bounds
 	renderBounds := win.Bounds()
-	frame := glitch.NewFrame(renderBounds, false)
+	frame := glitch.NewFrame(renderBounds, true)
 
-	windowPass := glitch.NewRenderPass(shader)
+	windowPass := glitch.NewRenderPass(pixelArtShader)
 
 	pass := glitch.NewRenderPass(shader)
 	pass.SoftwareSort = glitch.SoftwareSortY
@@ -214,7 +219,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	group := ui.NewGroup(win, screenCamera, atlas)
 
 	camera := render.NewCamera(win.Bounds(), 0, 0)
-	// zoomSpeed := 1.0
+	camera.Zoom = 2.0
+
 	quit := ecs.Signal{}
 	quit.Set(false)
 
@@ -269,7 +275,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			// TODO - move to other system
 			_, scrollY := win.MouseScroll()
 
-			const minZoom = 1
+			const minZoom = 2
 			const maxZoom = 16.0
 
 			if scrollY > 0 {
@@ -336,10 +342,10 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateFramebuffer", func(dt time.Duration) {
 			renderBounds := win.Bounds()
-			// TODO - how to determine 50?
-			renderBounds = renderBounds.Pad(glitch.R(50,50,50,50)) // Pad out by 50 pixel so that camera can drift inside pixels
+			// TODO - how to determine 16?
+			renderBounds = renderBounds.Pad(glitch.R(16,16,16,16)) // Pad out by 16 pixel so that camera can drift inside pixels
 			if frame.Bounds() != renderBounds {
-				frame = glitch.NewFrame(renderBounds, false)
+				frame = glitch.NewFrame(renderBounds, true)
 				// log.Print("recreating fbo: ", frame.Bounds(), renderBounds, win.Bounds())
 			}
 		}},
@@ -437,9 +443,9 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			windowPass.Clear()
 			windowPass.SetUniform("projection", camera.Camera.Projection)
 
+			mat := glitch.Mat4Ident
 			vvx, vvy, _ := camera.Camera.View.GetTranslation()
 			vsx, vsy, _ := camera.Camera.ViewSnapped.GetTranslation()
-			mat := glitch.Mat4Ident
 			mat.Translate(float32(vvx - vsx), float32(vvy - vsy), 0)
 			windowPass.SetUniform("view", mat)
 
