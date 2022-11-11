@@ -466,6 +466,17 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				if sock.Connected.Load() {
 					group.SetColor(glitch.RGBA{0, 1, 0, 1})
 					group.FixedText("Connected", connectedRect, glitch.Vec2{1, 0}, textScale)
+					rtt := playerData.RoundTripTimes()
+					rttPoints := make([]glitch.Vec2, len(rtt))
+					for i := range rtt {
+						rttPoints[i] = glitch.Vec2{
+							float32(i),
+							float32(1000 * rtt[i].Seconds()),
+						}
+					}
+					rttRect := connectedRect.Anchor(glitch.R(0, 0, 200, 100), glitch.Vec2{1, 1})//.Moved(glitch.Vec2{0, connectedRect.H()})
+					group.SetColor(glitch.RGBA{0, 0, 1, 1})
+					group.LineGraph(rttRect, rttPoints)
 				} else {
 					group.SetColor(glitch.RGBA{1, 0, 0, 1})
 					group.FixedText("Disconnected", connectedRect, glitch.Vec2{1, 0}, textScale)

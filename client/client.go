@@ -43,7 +43,7 @@ func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.Pl
 			if !ok { return } // Skip if player doesn't have a collider
 			if !transform.Replayed {
 				for i := range inputBuffer {
-					mmo.MoveCharacter(&inputBuffer[i], &transform.PhyTrans, &collider, tilemap, ecs.FixedTimeStep)
+					mmo.MoveCharacter(&inputBuffer[i].Input, &transform.PhyTrans, &collider, tilemap, ecs.FixedTimeStep)
 				}
 				transform.Replayed = true
 				ecs.Write(world, playerId, ecs.C(transform))

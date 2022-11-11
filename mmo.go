@@ -16,6 +16,34 @@ import (
 	"github.com/unitoftime/mmo/serdes"
 )
 
+// TODO - make this guy generic
+type RingBuffer struct {
+	idx int
+	buffer []time.Duration
+}
+func NewRingBuffer(length int) *RingBuffer {
+	return &RingBuffer{
+		idx: 0,
+		buffer: make([]time.Duration, length),
+	}
+}
+
+func (b *RingBuffer) Add(t time.Duration) {
+	b.buffer[b.idx] = t
+	b.idx = (b.idx + 1) % len(b.buffer)
+}
+
+// TODO - Maybe convert this to an iterator
+func (b *RingBuffer) Buffer() []time.Duration {
+	ret := make([]time.Duration, len(b.buffer))
+	firstSliceLen := len(b.buffer) - b.idx
+	copy(ret[:firstSliceLen], b.buffer[b.idx:len(b.buffer)])
+	copy(ret[firstSliceLen:], b.buffer[0:b.idx])
+	return ret
+}
+
+// ---
+
 var seed int64 = 12345
 var mapSize int = 100
 var tileSize int = 16
@@ -26,6 +54,11 @@ const (
 	WallLayer
 )
 
+type InputBufferItem struct {
+	Input physics.Input
+	Time time.Time
+}
+
 // This represents global player data on the client
 type PlayerData struct {
 	mu sync.RWMutex
@@ -33,11 +66,15 @@ type PlayerData struct {
 	playerTick uint16
 	serverTick uint16
 	lastMessage string
-	inputBuffer []physics.Input
+	inputBuffer []InputBufferItem
+	roundTripTimes *RingBuffer
 }
+
 func NewPlayerData() *PlayerData {
 	return &PlayerData{
 		id: ecs.InvalidEntity,
+		inputBuffer: make([]InputBufferItem, 0),
+		roundTripTimes: NewRingBuffer(100), // TODO - configurable
 	}
 }
 
@@ -71,6 +108,10 @@ func (p *PlayerData) SetTicks(serverTick, serverUpdatePlayerTick uint16) {
 	// Cut off every player input tick that the server hasn't processed
 	cut := int(p.playerTick - serverUpdatePlayerTick)
 	// fmt.Println("InputBuffer", p.serverTick, p.playerTick, serverUpdatePlayerTick, len(p.inputBuffer))
+	for i := 0; i < len(p.inputBuffer)-cut; i++ {
+		p.roundTripTimes.Add(time.Since(p.inputBuffer[i].Time))
+	}
+
 	if cut >= 0 && cut <= len(p.inputBuffer) {
 		// TODO - it'd be more efficient to use a queue
 		copy(p.inputBuffer, p.inputBuffer[len(p.inputBuffer)-cut:])
@@ -87,12 +128,19 @@ func (p *PlayerData) AppendInputTick(input physics.Input) uint16 {
 	defer p.mu.Unlock()
 
 	p.playerTick = (p.playerTick + 1) % math.MaxUint16
-	p.inputBuffer = append(p.inputBuffer, input)
+	p.inputBuffer = append(p.inputBuffer, InputBufferItem{
+		Input: input,
+		Time: time.Now(),
+	})
 	return p.playerTick
 }
 
-func (p *PlayerData) GetInputBuffer() []physics.Input {
+func (p *PlayerData) GetInputBuffer() []InputBufferItem {
 	return p.inputBuffer
+}
+
+func (p *PlayerData) RoundTripTimes() []time.Duration {
+	return p.roundTripTimes.Buffer()
 }
 
 // Returns the message as sent to the server
