@@ -8,6 +8,7 @@ import (
 	// "fmt"
 	"embed"
 	// "math"
+	"strings"
 
 	"flag"
 
@@ -211,6 +212,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	tmapRender.Clear()
 	tmapRender.Batch(tilemap)
 
+	debugMode := false
+
 	textInputMode := false
 
 	screenCamera := glitch.NewCameraOrtho()
@@ -336,8 +339,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	panelSprite.Scale = 8
 	textInputString := ""
 
-	// debugSprite, err := spritesheet.Get("ui_panel0.png")
-	// if err != nil { panic(err) }
+	debugSprite, err := spritesheet.Get("ui_panel0.png")
+	if err != nil { panic(err) }
 
 	renderSystems := []ecs.System{
 		ecs.System{"UpdateFramebuffer", func(dt time.Duration) {
@@ -380,15 +383,15 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			client.PlayAnimations(pass, world, dt)
 
 			// Debug. Draw neworking position buffer
-			// {
-			// 	ecs.Map2(world, func(id ecs.Id, t *physics.Transform, nt *client.NextTransform) {
+			if debugMode {
+				ecs.Map2(world, func(id ecs.Id, t *physics.Transform, nt *client.NextTransform) {
 
-			// 		npos := nt.PhyTrans
-			// 		mat := glitch.Mat4Ident
-			// 		mat.Scale(0.5, 0.5, 1.0).Translate(float32(npos.X), float32(npos.Y + npos.Height), 0)
-			// 		debugSprite.Draw(pass, mat)
-			// 	})
-			// }
+					npos := nt.PhyTrans
+					mat := glitch.Mat4Ident
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(npos.X), float32(npos.Y + npos.Height), 0)
+					debugSprite.Draw(pass, mat)
+				})
+			}
 
 			// Draw speech bubbles
 			{
@@ -475,8 +478,10 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 						}
 					}
 					rttRect := connectedRect.Anchor(glitch.R(0, 0, 200, 100), glitch.Vec2{1, 1})//.Moved(glitch.Vec2{0, connectedRect.H()})
-					group.SetColor(glitch.RGBA{0, 0, 1, 1})
-					group.LineGraph(rttRect, rttPoints)
+					if debugMode {
+						group.SetColor(glitch.RGBA{0, 0, 1, 1})
+						group.LineGraph(rttRect, rttPoints)
+					}
 				} else {
 					group.SetColor(glitch.RGBA{1, 0, 0, 1})
 					group.FixedText("Disconnected", connectedRect, glitch.Vec2{1, 0}, textScale)
@@ -484,6 +489,9 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 
 				if !textInputMode && win.JustPressed(glitch.KeyEnter) {
 					textInputMode = true
+				} else if !textInputMode && win.JustPressed(glitch.KeySlash) {
+					textInputMode = true
+					textInputString = "/"
 				} else if textInputMode {
 					inputRect := win.Bounds()
 					inputRect = inputRect.CutBottom(200)
@@ -494,9 +502,15 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					group.SetColor(glitch.RGBA{1, 1, 1, 1})
 					group.TextInput(panelSprite, &textInputString, inputRect, glitch.Vec2{0.5, 0.5}, textScale)
 					if win.JustPressed(glitch.KeyEnter) {
-						// Write the player's speech bubble
-						// msg := playerData.SendMessage(textInputString)
-						client.SetSpeech(world, atlas, playerData.Id(), textInputString)
+						if strings.HasPrefix(textInputString, "/") {
+							if strings.HasPrefix(textInputString, "/debug") {
+								debugMode = !debugMode
+							}
+						} else {
+							// Write the player's speech bubble
+							client.SetSpeech(world, atlas, playerData.Id(), textInputString)
+						}
+
 						textInputString = textInputString[:0]
 						textInputMode = false
 					}
