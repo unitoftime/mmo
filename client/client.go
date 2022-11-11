@@ -214,7 +214,7 @@ func ClientReceive(sock *mnet.Socket, playerData *mmo.PlayerData, networkChannel
 						newCompSlice = append(newCompSlice, c)
 					}
 				}
-				compSlice = newCompSlice
+				t.WorldData[playerData.Id()] = newCompSlice
 			}
 
 			for _, compSlice := range t.WorldData {

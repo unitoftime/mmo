@@ -15,6 +15,7 @@ func dialWs(ctx context.Context, url string) (*websocket.Conn, error) {
 		HTTPClient: &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
+					// TODO! - Set insecureskipverify to false
 					InsecureSkipVerify: true,
 				},
 			},
