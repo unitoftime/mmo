@@ -62,6 +62,7 @@ type ClientLogoutResp struct {
 
 type Serdes struct {
 	encMut, decMut *sync.Mutex
+	union *UnionBuilder
 
 	GobEncoder *gob.Encoder
 	EncBuf *bytes.Buffer
@@ -74,6 +75,7 @@ func New() *Serdes {
 	var encBuf, decBuf bytes.Buffer
 	return &Serdes{
 		Method: "binary", // Note - I think when you change this it'll break everything but the framed ones
+		union: NewUnion(WorldUpdate{}, ClientLogin{}, ClientLoginResp{}, ClientLogout{}, ClientLogoutResp{}),
 
 		GobEncoder: gob.NewEncoder(&encBuf),
 		EncBuf: &encBuf,
@@ -84,6 +86,10 @@ func New() *Serdes {
 	}
 }
 
+// func Marshal[T any](s *Serdes, v T) ([]byte, error) {
+// 	return Serialize(s.union, v)
+// }
+
 func (s *Serdes) Marshal(v any) ([]byte, error) {
 	switch s.Method {
 	case "fb":
@@ -93,7 +99,10 @@ func (s *Serdes) Marshal(v any) ([]byte, error) {
 	case "gob":
 		return s.GobMarshal(v)
 	case "binary":
-		return MarshalBinary(v)
+		// return MarshalBinary(v)
+		// fmt.Printf("Marshal: %T\n", v)
+		return s.union.Serialize(v)
+		// return Serialize(s.union, v)
 	}
 	panic(fmt.Sprintf("Unknown method type: %s", s.Method))
 }
@@ -107,7 +116,10 @@ func (s *Serdes) Unmarshal(dat []byte) (any, error) {
 	case "gob":
 		return s.GobUnmarshal(dat)
 	case "binary":
-		return UnmarshalBinary(dat)
+		// return UnmarshalBinary(dat)
+		val, err := s.union.Deserialize(dat)
+		// fmt.Printf("Unmarshal: %T %v\n", val, val)
+		return val, err
 	}
 	panic(fmt.Sprintf("Unknown method type: %s", s.Method))
 }
