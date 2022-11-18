@@ -282,6 +282,7 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 				// Filter chat messages
 				for _, compSlice := range t.WorldData {
 					for i, c := range compSlice {
+
 						switch t := c.(type) {
 						case ecs.CompBox[game.Speech]:
 							filteredText := game.FilterChat(t.Get().Text)

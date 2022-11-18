@@ -492,6 +492,12 @@ type LastUpdate struct {
 	Time time.Time
 }
 
+// type EcsUpdate struct {
+// 	WorldData map[ecs.Id][]ecs.Component
+// 	Delete []ecs.Id
+// }
+
+// TODO - this kindof represents a greater pattern of trying to apply commands to the world in a threadsafe manner. Maybe integrate this into the ECS library: https://docs.rs/bevy/0.4.0/bevy/ecs/trait.Command.html
 func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldUpdate) ecs.System {
 	sys := ecs.System{"PollNetworkChannel", func(dt time.Duration) {
 
@@ -501,7 +507,6 @@ func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldU
 			case update := <-networkChannel:
 				for id, compList := range update.WorldData {
 					compList = append(compList, ecs.C(LastUpdate{time.Now()}))
-
 					ecs.Write(world, id, compList...)
 				}
 
