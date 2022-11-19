@@ -3,6 +3,7 @@ package serdes
 import (
 	"github.com/unitoftime/binary"
 	"github.com/unitoftime/ecs"
+	"github.com/unitoftime/flow/net"
 
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/mmo/game"
@@ -23,10 +24,10 @@ import (
 // Json:   411 Kb/s
 
 // TODO! - should I just have one big union object that everything is in? That'll greatly simplify a recursive serializer. Kindoflike gob where if you hit an interface you just try to unionize it. Then when you pull it out you do the opposite...
-var componentUnion *UnionBuilder
+var componentUnion *net.UnionBuilder
 func init() {
 	// componentUnion = NewUnion(physics.Transform{}, physics.Input{}, game.Body{}, game.Speech{})
-	componentUnion = NewUnion(ecs.C(physics.Transform{}), ecs.C(physics.Input{}), ecs.C(game.Body{}), ecs.C(game.Speech{}))
+	componentUnion = net.NewUnion(ecs.C(physics.Transform{}), ecs.C(physics.Input{}), ecs.C(game.Body{}), ecs.C(game.Speech{}))
 }
 
 // TODO - for delta encoding of things that have to be different like ecs.Ids, if you encode the number as 0 then that could indicate that "we needed more bytes to encode the delta"
@@ -42,7 +43,7 @@ type BinWorldUpdate struct {
 	Tick uint16
 	PlayerTick uint16
 	UserId uint64
-	WorldData map[uint32][]Union
+	WorldData map[uint32][]net.Union
 	Delete []ecs.Id
 }
 
@@ -52,11 +53,11 @@ func (w WorldUpdate) MarshalBinary() ([]byte, error) {
 		PlayerTick: w.PlayerTick,
 		UserId: w.UserId,
 		// WorldData: make(map[ecs.Id][]BinaryComponent), // TODO the binary serdes package I'm using doesn't support ecs.Id as a key panic: reflect.Value.SetMapIndex: value of type uint32 is not assignable to type ecs.Id [recovered] panic: reflect.Value.SetMapIndex: value of type uint32 is not assignable to type ecs.Id
-		WorldData: make(map[uint32][]Union),
+		WorldData: make(map[uint32][]net.Union),
 		Delete: w.Delete,
 	}
 	for id := range w.WorldData {
-		cSlice := make([]Union, 0)
+		cSlice := make([]net.Union, 0)
 		for _, c := range w.WorldData[id] {
 			union, err := componentUnion.Make(c)
 			if err != nil { return nil, err }
@@ -117,12 +118,12 @@ type ClientLogoutResp struct {
 }
 
 type Serdes struct {
-	union *UnionBuilder
+	union *net.UnionBuilder
 }
 
 func New() *Serdes {
 	return &Serdes{
-		union: NewUnion(WorldUpdate{}, ClientLogin{}, ClientLoginResp{}, ClientLogout{}, ClientLogoutResp{}),
+		union: net.NewUnion(WorldUpdate{}, ClientLogin{}, ClientLoginResp{}, ClientLogout{}, ClientLogoutResp{}),
 	}
 }
 

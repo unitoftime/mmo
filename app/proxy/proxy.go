@@ -7,29 +7,23 @@ import (
 	"net/http"
 	"crypto/tls"
 	"sync"
-	"net"
 	"time"
-	"context"
 	"errors"
 
 	// "embed"
 	// "io/ioutil"
 	// "gopkg.in/yaml.v3"
 
-	"nhooyr.io/websocket"
-
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/unitoftime/flow/net"
+
 	"github.com/unitoftime/mmo/stat"
 	"github.com/unitoftime/mmo/serdes"
-	"github.com/unitoftime/mmo/mnet"
 	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/ecs"
 )
-
-// // go:embed config.yaml
-// var fs embed.FS
 
 type Config struct {
 	ServerUri string
@@ -37,23 +31,6 @@ type Config struct {
 	CertFile string
 	Test bool
 }
-// func LoadConfig() (*Config, error) {
-// 	file, err := fs.Open("config.yaml")
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer file.Close()
-
-// 	yamlData, err := ioutil.ReadAll(file)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	config := &Config{}
-// 	err = yaml.Unmarshal(yamlData, config)
-// 	return config, err
-// }
-
 
 func Main(config Config) {
 	logfile, err := os.OpenFile("proxy.log", os.O_RDWR|os.O_CREATE, 0755)
@@ -63,40 +40,35 @@ func Main(config Config) {
 	// log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: logfile})
 
-	// config, err := LoadConfig()
-	// if err != nil { panic(err) }
 	log.Print("Using Config: ", config)
-
-	// url := "tcp://127.0.0.1:9000"
-	url := config.ServerUri
 
 	room := NewRoom()
 
-	sock, err := mnet.NewSocket(url)
+	serverNet := net.Config{
+		Url: config.ServerUri,
+		Serdes: serdes.New(),
+		ReconnectHandler: func(sock *net.Socket) error {
+			// After we reconnect the proxy to the server, we want to log all the players into the server who were waiting.
+			room.mu.RLock()
+			for userId := range room.Map {
+				log.Debug().Uint64(stat.UserId, userId).Msg("Reconnect - Sending Login Message for")
+
+				loginMsg := serdes.ClientLogin{userId}
+				err := sock.Send(loginMsg)
+				if err != nil {
+					log.Error().Err(err).Uint64(stat.UserId, userId).Msg("Failed to send login message")
+				}
+			}
+			room.mu.RUnlock()
+
+			return room.HandleGameUpdates(sock)
+		},
+	}
+
+	sock, err := serverNet.Dial()
 	if err != nil {
 		panic(err)
 	}
-
-	go mnet.ReconnectLoop(sock, func(sock *mnet.Socket) error {
-		// After we reconnect the proxy to the server, we want to log all the players into the server who were waiting.
-		room.mu.RLock()
-		for userId := range room.Map {
-			log.Debug().Uint64(stat.UserId, userId).Msg("Reconnect - Sending Login Message for")
-
-			loginMsg := serdes.ClientLogin{userId}
-			err := sock.Send(loginMsg)
-			if err != nil {
-				log.Error().Err(err).Uint64(stat.UserId, userId).Msg("Failed to send login message")
-			}
-		}
-		room.mu.RUnlock()
-
-		return room.HandleGameUpdates(sock)
-	})
-	// go mmo.ReconnectLoop(world, clientConn, &playerId, networkChannel)
-
-	// HTTP Version
-	// listener, err := net.Listen("tcp", ":443")
 
 	// HTTPS Version
 	certPem, err := os.ReadFile(config.CertFile)
@@ -119,90 +91,70 @@ func Main(config Config) {
 	if config.Test {
 		hostname = "localhost:7777"
 	}
-	listener, err := tls.Listen("tcp", hostname, tlsConfig)
+
+	wsConfig := net.Config{
+		Url: "wss://"+hostname,
+		Serdes: serdes.New(),
+		TlsConfig: tlsConfig,
+		HttpServer: &http.Server{
+			TLSConfig: tlsConfig,
+			ReadTimeout: 10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+		},
+		OriginPatterns: []string{"localhost:8081", "mmo.unit.dev", "unit.dev", "www.unit.dev"},
+	}
+
+	listener, err := wsConfig.Listen()
 	if err != nil {
 		panic(err)
 	}
-
-	// go room.HandleGameUpdates(serverConn)
-
-	s := &http.Server{
-		TLSConfig: tlsConfig,
-		Handler: websocketServer{
-			serverConn: sock,
-			room: room,
-		},
-		ReadTimeout: 10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-	}
-
 	log.Print("Starting Proxy", listener.Addr())
 
-	errc := make(chan error, 1)
-	go func() {
-		errc <- s.Serve(listener)
-	}()
+	playerServer := &websocketServer{
+		listener: listener,
+		serverConn: sock,
+		room: room,
+	}
+	playerServer.Start()
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt)
 
 	select{
-	case err := <-errc:
-		log.Error().Err(err).Msg("Failed to serve")
 	case sig := <-sigs:
 		log.Print(fmt.Sprintf("Terminating: %v", sig))
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
-	defer cancel()
-
-	err = s.Shutdown(ctx)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to shut down server")
-	}
 }
 
-// type ServerConnection struct {
-// 	encoder *serdes.Serdes
-// 	// sock mangos.Socket
-// 	conn *mnet.Socket
-// }
-
 type ClientConnection struct {
-	sock *mnet.Socket
-	// encoder *serdes.Serdes
-	// conn net.Conn
+	sock *net.Socket
 }
 
 type websocketServer struct {
-	// serverConn ServerConnection
-	serverConn *mnet.Socket
+	listener net.Listener
+	serverConn *net.Socket
 	room *Room
 }
 
-func (s websocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		OriginPatterns: []string{"localhost:8081", "mmo.unit.dev", "unit.dev", "www.unit.dev"},
-	})
-	if err != nil {
-		log.Error().Err(err).Msg("Error Accepting Websocket")
-		return
+func (s *websocketServer) Start() {
+	for {
+		sock, err := s.listener.Accept()
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to accept connection")
+			continue
+		}
+
+		go ServeNetConn(sock, s.serverConn, s.room)
 	}
-
-	ctx := context.Background()
-
-	conn := websocket.NetConn(ctx, c, websocket.MessageBinary)
-
-	go ServeNetConn(conn, s.serverConn, s.room)
 }
 
 // This is just to make sure different users get different login ids
 var userIdCounter uint64
 
 // Handles the websocket connection to a specific client in the room
-func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
+func ServeNetConn(sock *net.Socket, serverConn *net.Socket, room *Room) {
 	defer func() {
-		err := conn.Close()
+		err := sock.Close()
 		if err != nil {
 			log.Error().Err(err).Msg("Error closing websocket connection")
 		}
@@ -225,7 +177,7 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 		return
 	}
 
-	sock := mnet.NewConnectedSocket(conn)
+	// sock := net.NewConnectedSocket(conn, serdes.New())
 	room.Map[userId] = ClientConnection{sock}
 
 	room.mu.Unlock()
@@ -256,11 +208,11 @@ func ServeNetConn(conn net.Conn, serverConn *mnet.Socket, room *Room) {
 	go func() {
 		for {
 			msg, err := sock.Recv()
-			if errors.Is(err, mnet.ErrNetwork) {
+			if errors.Is(err, net.ErrNetwork) {
 				timeout <- StopTimeout // Stop timeout because of a read error
 				log.Warn().Err(err).Msg("Failed to receive")
 				return
-			} else if errors.Is(err, mnet.ErrSerdes) {
+			} else if errors.Is(err, net.ErrSerdes) {
 				// Handle errors where we should continue (ie serialization)
 				log.Error().Err(err).Msg("Failed to serialize")
 				continue
@@ -348,14 +300,14 @@ func (r *Room) GetClientConn(userId uint64) *ClientConnection {
 }
 
 // Read data from game server and send to client
-func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
+func (r *Room) HandleGameUpdates(serverConn *net.Socket) error {
 	for {
 		msg, err := serverConn.Recv()
-		if errors.Is(err, mnet.ErrNetwork) {
+		if errors.Is(err, net.ErrNetwork) {
 			// Handle errors where we should stop (ie connection closed or something)
 			log.Warn().Err(err).Msg("HandleGameUpdates NetError")
 			return err
-		} else if errors.Is(err, mnet.ErrSerdes) {
+		} else if errors.Is(err, net.ErrSerdes) {
 			// Handle errors where we should continue (ie serialization)
 			log.Error().Err(err).Msg("HandleGameUpdates SerdesError")
 			continue
@@ -403,7 +355,7 @@ func (r *Room) HandleGameUpdates(serverConn *mnet.Socket) error {
 	return nil
 }
 
-func sendUserLogoutToServer(sock *mnet.Socket, userId uint64) {
+func sendUserLogoutToServer(sock *net.Socket, userId uint64) {
 	err := sock.Send(serdes.ClientLogout{userId})
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to send logout message")

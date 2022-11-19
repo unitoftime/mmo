@@ -21,15 +21,15 @@ import (
 	"github.com/unitoftime/glitch/shaders"
 	"github.com/unitoftime/glitch/ui"
 
-	"github.com/unitoftime/mmo"
-	"github.com/unitoftime/mmo/client"
-	"github.com/unitoftime/mmo/mnet"
-	"github.com/unitoftime/mmo/game"
-	"github.com/unitoftime/mmo/serdes"
 	"github.com/unitoftime/flow/asset"
 	"github.com/unitoftime/flow/render"
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/tile"
+	"github.com/unitoftime/flow/net"
+
+	"github.com/unitoftime/mmo"
+	"github.com/unitoftime/mmo/game"
+	"github.com/unitoftime/mmo/serdes"
 )
 
 //go:embed assets/*
@@ -166,7 +166,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
 	url := globalConfig.ProxyUri
-	sock, err := mnet.NewSocket(url)
+	sock, err := net.NewSocket(url, serdes.New())
 	if err != nil {
 		panic(err)
 	}
@@ -175,8 +175,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	// This is the player's ID, by default we set this to invalid
 	playerData := mmo.NewPlayerData()
 
-	go mnet.ReconnectLoop(sock, func(sock *mnet.Socket) error {
-		return client.ClientReceive(sock, playerData, networkChannel)
+	go net.ReconnectLoop(sock, func(sock *net.Socket) error {
+		return ClientReceive(sock, playerData, networkChannel)
 	})
 
 	// Note: This requires a system to update the framebuffer if the window is resized. The system should essentially recreate the framebuffer with the new dimensions, This might be a good target for the framebuffer callback, but for now I'm just going to poll win.Bounds
@@ -242,10 +242,10 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			ecs.Map(world, func(id ecs.Id, body *game.Body) {
 				// TODO - is there a way to not have to poll these each frame?
 				// Body to animation
-				_, ok := ecs.Read[client.Animation](world, id)
+				_, ok := ecs.Read[Animation](world, id)
 				if !ok {
 					ecs.Write(world, id,
-						ecs.C(client.NewAnimation(load, spritesheet, *body)),
+						ecs.C(NewAnimation(load, spritesheet, *body)),
 					)
 				}
 
@@ -314,7 +314,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			}
 		}},
 		ecs.System{"SetAnimationFromState", func(dt time.Duration) {
-			ecs.Map2(world, func(id ecs.Id, input *physics.Input, anim *client.Animation) {
+			ecs.Map2(world, func(id ecs.Id, input *physics.Input, anim *Animation) {
 				if input.Left && !input.Right {
 					anim.Direction = "left"
 					anim.SetAnimation("run_left")
@@ -332,7 +332,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		}},
 	}
 
-	physicsSystems := client.CreateClientSystems(world, sock, playerData, tilemap)
+	physicsSystems := CreateClientSystems(world, sock, playerData, tilemap)
 
 	panelSprite, err := spritesheet.GetNinePanel("ui_panel0.png", glitch.R(2, 2, 2, 2))
 	if err != nil { panic(err) }
@@ -380,11 +380,11 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			pass.Clear()
 			render.DrawSprites(pass, world)
 
-			client.PlayAnimations(pass, world, dt)
+			PlayAnimations(pass, world, dt)
 
 			// Debug. Draw neworking position buffer
 			if debugMode {
-				ecs.Map2(world, func(id ecs.Id, t *physics.Transform, nt *client.NextTransform) {
+				ecs.Map2(world, func(id ecs.Id, t *physics.Transform, nt *NextTransform) {
 
 					npos := nt.PhyTrans
 					mat := glitch.Mat4Ident
@@ -403,7 +403,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 							commandList = append(commandList,
 								func() {
 									// TODO - combine SpeechRender component with otherone in game.SetSpeech()
-									ecs.Write(world, id, ecs.C(client.SpeechRender{
+									ecs.Write(world, id, ecs.C(SpeechRender{
 										Text: atlas.Text(speech.Text),
 										RemainingDuration: 5 * time.Second,
 									}))
@@ -416,7 +416,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					}
 				}
 
-				ecs.Map2(world, func(id ecs.Id, speech *client.SpeechRender, t *physics.Transform) {
+				ecs.Map2(world, func(id ecs.Id, speech *SpeechRender, t *physics.Transform) {
 
 					if speech.RemainingDuration < 0 { return } // Skip the display duration has ended
 					speech.RemainingDuration -= dt
@@ -508,7 +508,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 							}
 						} else {
 							// Write the player's speech bubble
-							client.SetSpeech(world, atlas, playerData.Id(), textInputString)
+							SetSpeech(world, atlas, playerData.Id(), textInputString)
 						}
 
 						textInputString = textInputString[:0]

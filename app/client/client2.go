@@ -7,15 +7,17 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/unitoftime/ecs"
+	"github.com/unitoftime/glitch"
+
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/render"
 	"github.com/unitoftime/flow/interp"
 	"github.com/unitoftime/flow/tile"
-	"github.com/unitoftime/glitch"
+	"github.com/unitoftime/flow/net"
+
 	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/mmo/serdes"
-	"github.com/unitoftime/mmo/mnet"
 )
 
 type NextTransform struct {
@@ -28,7 +30,7 @@ type NextTransform struct {
 // 	buffer []physics.Transform
 // }
 
-func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.PlayerData, tilemap *tile.Tilemap) []ecs.System {
+func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.PlayerData, tilemap *tile.Tilemap) []ecs.System {
 	clientSystems := []ecs.System{
 		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
 			ClientSendUpdate(world, sock, playerData)
@@ -101,7 +103,7 @@ func CreateClientSystems(world *ecs.World, sock *mnet.Socket, playerData *mmo.Pl
 	return clientSystems
 }
 
-func ClientSendUpdate(world *ecs.World, clientConn *mnet.Socket, playerData *mmo.PlayerData) {
+func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.PlayerData) {
 	playerId := playerData.Id()
 	// if clientConn is closed for some reason, then we won't be able to send
 	// TODO - With the atomic this fast enough?
@@ -171,14 +173,14 @@ func ClientSendUpdate(world *ecs.World, clientConn *mnet.Socket, playerData *mmo
 	// })
 }
 
-func ClientReceive(sock *mnet.Socket, playerData *mmo.PlayerData, networkChannel chan serdes.WorldUpdate) error {
+func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel chan serdes.WorldUpdate) error {
 	for {
 		msg, err := sock.Recv()
-		if errors.Is(err, mnet.ErrNetwork) {
+		if errors.Is(err, net.ErrNetwork) {
 			// Handle errors where we should stop (ie connection closed or something)
 			log.Warn().Err(err).Msg("ClientReceive NetworkErr")
 			return err
-		} else if errors.Is(err, mnet.ErrSerdes) {
+		} else if errors.Is(err, net.ErrSerdes) {
 			// Handle errors where we should continue (ie serialization)
 			log.Error().Err(err).Msg("ClientReceive SerdesErr")
 			continue

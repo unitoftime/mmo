@@ -1,4 +1,4 @@
-package mmo
+package server
 
 import (
 	"fmt"
@@ -7,14 +7,16 @@ import (
 	"sync"
 	"math"
 	"math/rand"
-	"net"
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/unitoftime/flow/net"
+
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/physics"
+
+	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/mmo/serdes"
-	"github.com/unitoftime/mmo/mnet"
 	"github.com/unitoftime/mmo/stat"
 	"github.com/unitoftime/mmo/game"
 )
@@ -120,11 +122,11 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 	// Read data
 	for {
 		msg, err := serverConn.Recv()
-		if errors.Is(err, mnet.ErrNetwork) {
+		if errors.Is(err, net.ErrNetwork) {
 			// Handle errors where we should stop (ie connection closed or something)
 			log.Warn().Err(err).Msg("ServeProxyConnection NetworkErr")
 			return err
-		} else if errors.Is(err, mnet.ErrSerdes) {
+		} else if errors.Is(err, net.ErrSerdes) {
 			// Handle errors where we should continue (ie serialization)
 			log.Error().Err(err).Msg("ServeProxyConnection SerdesErr")
 			continue
@@ -178,12 +180,13 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 		case serdes.ClientLogin:
 			log.Print("Server: serdes.ClientLogin")
 			// Login player
+			// TODO! - not threadsafe
 			id := world.NewId()
 
 			// TODO - hardcoded here and in client.go - Centralize character creation
 			collider := physics.NewCircleCollider(6)
-			collider.Layer = BodyLayer
-			collider.HitLayer = BodyLayer
+			collider.Layer = mmo.BodyLayer
+			collider.HitLayer = mmo.BodyLayer
 			trustedLogin := serdes.WorldUpdate{
 				WorldData: map[ecs.Id][]ecs.Component{
 					id: []ecs.Component{
@@ -194,7 +197,7 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 						ecs.C(physics.Input{}),
 						ecs.C(game.Body{uint32(rand.Intn(game.NumBodyTypes))}),
 						ecs.C(game.Speech{}),
-						ecs.C(SpawnPoint()),
+						ecs.C(mmo.SpawnPoint()),
 						ecs.C(collider),
 						ecs.C(physics.NewColliderCache()),
 					},
@@ -241,7 +244,7 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 
 //--------------------------------------------------------------------------------
 type ServerConn struct {
-	sock *mnet.Socket
+	sock *net.Socket
 
 	mu sync.RWMutex
 	proxyId uint64
@@ -293,19 +296,13 @@ type Server struct {
 	connections map[uint64]*ServerConn // A map of proxyIds to Proxy connections
 }
 
-// TODO - use net.URL?
-func NewServer(url string, handler func(*ServerConn) error) (*Server, error) {
-	listener, err := net.Listen("tcp", url)
-	if err != nil {
-		return nil, err
-	}
-
+func NewServer(listener net.Listener, handler func(*ServerConn) error) *Server {
 	server := Server{
 		listener: listener,
 		connections: make(map[uint64]*ServerConn),
 		handler: handler,
 	}
-	return &server, nil
+	return &server
 }
 
 
@@ -326,13 +323,11 @@ func (s *Server) Start() {
 	counter := uint64(0)
 	for {
 		// Wait for a connection.
-		conn, err := s.listener.Accept()
+		sock, err := s.listener.Accept()
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to accept connection")
+			continue
 		}
-
-		// TODO - is this bad? This socket should never get dialed
-		sock := mnet.NewConnectedSocket(mnet.NewFrameConn(conn))
 
 		proxyId := counter
 		serverConn := &ServerConn{
