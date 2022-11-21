@@ -30,7 +30,7 @@ func main() {
 	client.Main(client.Config{
 		ProxyUri: "wss://localhost:7777",
 		// ProxyUri: "wss://mmo.unit.dev:443",
-		// Test: true,
+		Test: true,
 	})
 
 	if *memprofile != "" {

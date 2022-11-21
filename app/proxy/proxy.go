@@ -10,10 +10,6 @@ import (
 	"time"
 	"errors"
 
-	// "embed"
-	// "io/ioutil"
-	// "gopkg.in/yaml.v3"
-
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -144,6 +140,7 @@ func (s *websocketServer) Start() {
 			continue
 		}
 
+		log.Print("Accepting new connection")
 		go ServeNetConn(sock, s.serverConn, s.room)
 	}
 }
@@ -203,8 +200,6 @@ func ServeNetConn(sock *net.Socket, serverConn *net.Socket, room *Room) {
 	}()
 
 	// Read data from client and sends to game server
-	// TODO - (When I migrate to TCP) TCP doesn't provide framing, so message framing needs to be added
-	// TODO - (When I migrate to TCP) TCP will send 0 byte messages to indicate closes, websockets sends them without closing
 	go func() {
 		for {
 			msg, err := sock.Recv()

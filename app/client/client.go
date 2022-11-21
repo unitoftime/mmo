@@ -9,8 +9,8 @@ import (
 	"embed"
 	// "math"
 	"strings"
-
 	"flag"
+	"crypto/tls"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -37,6 +37,7 @@ var fs embed.FS
 
 type Config struct {
 	ProxyUri string
+	Test bool
 }
 
 var skipMenu = flag.Bool("skip", false, "skip the login menu (for testing)")
@@ -165,19 +166,36 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	world := ecs.NewWorld()
 	networkChannel := make(chan serdes.WorldUpdate, 1024)
 
-	url := globalConfig.ProxyUri
-	sock, err := net.NewSocket(url, serdes.New())
-	if err != nil {
-		panic(err)
-	}
-	// sock.SkipVerify = config.Test
-
 	// This is the player's ID, by default we set this to invalid
 	playerData := mmo.NewPlayerData()
 
-	go net.ReconnectLoop(sock, func(sock *net.Socket) error {
-		return ClientReceive(sock, playerData, networkChannel)
-	})
+	// TODO - Do this for local testing (Right now I'm doing insecure skip verify)
+	// Ref: https://github.com/jcbsmpsn/golang-https-example
+	// cert, err := os.ReadFile("cert.pem")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// caCertPool := x509.NewCertPool()
+	// caCertPool.AppendCertsFromPEM(caCert)
+	// tlsConfig := &tls.Config{
+	// 	RootCAs: caCertPool,
+	// }
+
+	proxyNet := net.Config{
+		Url: globalConfig.ProxyUri,
+		Serdes: serdes.New(),
+		TlsConfig: &tls.Config{
+			InsecureSkipVerify: globalConfig.Test, // If test mode, then we don't care about the cert
+		},
+		ReconnectHandler: func(sock *net.Socket) error {
+			return ClientReceive(sock, playerData, networkChannel)
+		},
+	}
+
+	sock, err := proxyNet.Dial()
+	if err != nil {
+		panic(err)
+	}
 
 	// Note: This requires a system to update the framebuffer if the window is resized. The system should essentially recreate the framebuffer with the new dimensions, This might be a good target for the framebuffer callback, but for now I'm just going to poll win.Bounds
 	renderBounds := win.Bounds()
