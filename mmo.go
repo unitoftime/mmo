@@ -99,6 +99,8 @@ func (p *PlayerData) SetId(id ecs.Id) {
 // }
 
 func (p *PlayerData) SetTicks(serverTick, serverUpdatePlayerTick uint16) {
+	// fmt.Println("SetTicks: ", serverTick, serverUpdatePlayerTick, time.Now())
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 

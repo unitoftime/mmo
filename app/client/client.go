@@ -409,6 +409,12 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					mat.Scale(0.5, 0.5, 1.0).Translate(float32(npos.X), float32(npos.Y + npos.Height), 0)
 					debugSprite.Draw(pass, mat)
 				})
+
+				ecs.Map(world, func(id ecs.Id, t *ServerTransform) {
+					mat := glitch.Mat4Ident
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(t.X), float32(t.Y + t.Height), 0)
+					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 0, 0, 1})
+				})
 			}
 
 			// Draw speech bubbles

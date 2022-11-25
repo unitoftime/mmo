@@ -20,6 +20,9 @@ import (
 	"github.com/unitoftime/mmo/serdes"
 )
 
+// This is mostly for debug, but maybe its a good thing to track
+type ServerTransform physics.Transform
+
 type NextTransform struct {
 	PhyTrans physics.Transform
 	Replayed bool
@@ -38,6 +41,7 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 		ecs.System{"ReplayInputBuffer", func(dt time.Duration) {
 			// Replays the remaining input buffer to try and guesstimate the player's position
 			inputBuffer := playerData.GetInputBuffer()
+			// log.Print("InputBuffer: ", len(inputBuffer))
 			playerId := playerData.Id()
 			transform, ok := ecs.Read[NextTransform](world, playerId)
 			if !ok { return } // Skip if player doesn't have a transform
@@ -76,6 +80,9 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 				// interpFactor := 1.0
 				phyT.X = interp.Linear.Float64(phyT.X, nextT.PhyTrans.X, interpFactor)
 				phyT.Y = interp.Linear.Float64(phyT.Y, nextT.PhyTrans.Y, interpFactor)
+				// interpFactor := 0.4
+				// phyT.X = interp.EaseIn.Float64(phyT.X, nextT.PhyTrans.X, interpFactor)
+				// phyT.Y = interp.EaseIn.Float64(phyT.Y, nextT.PhyTrans.Y, interpFactor)
 			})
 		}},
 	}
@@ -219,7 +226,7 @@ func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel 
 				t.WorldData[playerData.Id()] = newCompSlice
 			}
 
-			for _, compSlice := range t.WorldData {
+			for j, compSlice := range t.WorldData {
 				for i, c := range compSlice {
 					switch t := c.(type) {
 					case ecs.CompBox[physics.Transform]:
@@ -227,9 +234,12 @@ func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel 
 							PhyTrans: t.Get(),
 							Replayed: false,
 						}
+						serverTransform := ServerTransform(t.Get())
 						compSlice[i] = ecs.C(nextTransform)
+						compSlice = append(compSlice, ecs.C(serverTransform))
 					}
 				}
+				t.WorldData[j] = compSlice
 			}
 
 			networkChannel <- t

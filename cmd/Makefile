@@ -21,8 +21,10 @@ client:
 	cp client/index.html build/
 	cp "$(shell go env GOROOT)/misc/wasm/wasm_exec.js" build/
 
-lag-international:
+lag-international-single:
 	tc qdisc add dev lo root netem delay 200ms 40ms 25% loss 15.3% 25% duplicate 1% corrupt 0.1% reorder 5% 50%
+lag-international:
+	tc qdisc add dev lo root netem delay 50ms 40ms 5% loss 2.5% 2.5% duplicate .5% corrupt 0.05% reorder 2% 5%
 lag-local:
 	tc qdisc add dev lo root netem delay 25ms 5ms 25% loss 1% 5% duplicate 1% corrupt 0.1% reorder 1% 50%
 lag-good:

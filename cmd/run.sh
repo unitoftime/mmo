@@ -5,4 +5,5 @@ set -e
 
 go run ./server &
 go run ./proxy &
+go run ./client --skip &
 go run ./client --skip
