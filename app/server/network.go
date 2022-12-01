@@ -51,8 +51,36 @@ func (d *DeleteList) CopyAndClear() []ecs.Id {
 	return dListCopy
 }
 
+var everyOther int
+
+// var lastTime time.Time
+var lastTime4 time.Time
+
+var AvgWorldUpdateTime time.Duration
+
+var lastWorldUpdate time.Time
+var worldUpdateTimes *mmo.RingBuffer
+func init() {
+	lastWorldUpdate = time.Now()
+	bufLen := 100
+	worldUpdateTimes = mmo.NewRingBuffer(bufLen)
+	for i := 0; i < bufLen; i++ {
+		worldUpdateTimes.Add(4 * mmo.FixedTimeStep) // TODO! - hardcoded
+	}
+}
+
 // This calculates the update to send to all players, finds the proxy associated with them, and sends that update over the wire
 func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) {
+	// log.Print("ServerSendUpdate-LastTime: ", time.Since(lastTime))
+	// lastTime = time.Now()
+	everyOther = (everyOther + 1) % 4
+	if everyOther != 0 {
+		return // skip
+	}
+	// log.Print("ServerSendUpdate-LastTime4: ", time.Since(lastTime4))
+	// lastTime4 = time.Now()
+
+
 	dListCopy := deleteList.CopyAndClear()
 
 	// Just delete everything that is gone
@@ -114,6 +142,18 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 			}
 		})
 	}
+
+	// {
+	// 	worldUpdateTimes.Add(time.Since(lastWorldUpdate))
+	// 	lastWorldUpdate = time.Now()
+	// 	buf := worldUpdateTimes.Buffer()
+	// 	AvgWorldUpdateTime = 0
+	// 	for i := range buf {
+	// 		AvgWorldUpdateTime += buf[i]
+	// 	}
+	// 	AvgWorldUpdateTime = AvgWorldUpdateTime / time.Duration(len(buf))
+	// 	log.Print("Server-AvgWorldUpdateTime: ", AvgWorldUpdateTime)
+	// }
 }
 
 func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList) error {

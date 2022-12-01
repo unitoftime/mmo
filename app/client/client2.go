@@ -2,6 +2,7 @@ package client
 
 import (
 	"time"
+	// "math"
 	"errors"
 
 	"github.com/rs/zerolog/log"
@@ -21,12 +22,184 @@ import (
 )
 
 // This is mostly for debug, but maybe its a good thing to track
-type ServerTransform physics.Transform
+type ServerTransform struct {
+	physics.Transform
+	Handled bool
+	ServerTick uint16
+	PlayerTick uint16
+}
 
 type NextTransform struct {
-	PhyTrans physics.Transform
+	// PhyTrans physics.Transform
+	ReadIdx, WriteIdx int
+	Transforms []ServerTransform
 	Replayed bool
+	InterpTo ServerTransform
+	InterpFrom ServerTransform
+	Interp float64
+
+	Extrapolation physics.Transform // This is the extrapolated position for the currently interpolated tick
+	ExtrapolationOffset physics.Transform
+
+	Remaining, Total time.Duration
+	AvgTickTime time.Duration
+	TargetDelay int // Delay in ticks
+
+	LastTick uint16
 }
+func NewTransformBuffer() NextTransform {
+	return NextTransform{
+		ReadIdx: 0,
+		WriteIdx: 0,
+		Transforms: make([]ServerTransform, 12),
+		Replayed: false,
+		Interp: 0,
+		AvgTickTime: 16 * time.Millisecond * 4, // TODO - get from actual average of ticks coming in. Note: 4 comes from %4 that I'm doing on sending ticks
+		TargetDelay: 1, // TODO - Set
+	}
+}
+
+func (n *NextTransform) Len() int {
+	l := len(n.Transforms)
+
+	firstIdx := n.ReadIdx
+	lastIdx := n.WriteIdx
+	if lastIdx < firstIdx {
+		lastIdx += l
+	}
+	return lastIdx - firstIdx
+}
+
+func (n *NextTransform) Delay() int {
+	if n.Len() == 0 {
+		return 0
+	}
+	firstIdx := n.ReadIdx
+	lastIdx := (n.WriteIdx + len(n.Transforms) - 1) % len(n.Transforms)
+
+	first := n.Transforms[firstIdx]
+	last := n.Transforms[lastIdx]
+
+	// log.Print("Delay(): ", firstIdx, lastIdx, first.ServerTick, last.ServerTick)
+	// for i := range n.Transforms {
+	// 	log.Print(n.Transforms[i])
+	// }
+	return int(last.ServerTick - first.ServerTick)
+}
+
+func (n *NextTransform) Add(t ServerTransform) {
+	if (n.WriteIdx + 1) % len(n.Transforms) == n.ReadIdx {
+		// Queue is full
+		panic("QUEUE IS FULL!") // TODO - Not sure how to handle this, maybe just keep writing like I would in a ringbuffer?
+	}
+	n.Transforms[n.WriteIdx] = t
+	n.WriteIdx = (n.WriteIdx + 1) % len(n.Transforms)
+}
+
+func (n *NextTransform) Peek() (ServerTransform, bool) {
+	if n.ReadIdx == n.WriteIdx {
+		return ServerTransform{}, false
+	}
+	return n.Transforms[n.ReadIdx], true
+}
+func (n *NextTransform) PeekLast() (ServerTransform, bool) {
+	if n.ReadIdx == n.WriteIdx {
+		return ServerTransform{}, false
+	}
+	idx := (n.WriteIdx + len(n.Transforms) - 1) % len(n.Transforms)
+	return n.Transforms[idx], true
+}
+func (n *NextTransform) Remove() (ServerTransform, bool) {
+	if n.ReadIdx == n.WriteIdx {
+		return ServerTransform{}, false
+	}
+	val := n.Transforms[n.ReadIdx]
+	n.ReadIdx = (n.ReadIdx + 1) % len(n.Transforms)
+	return val, true
+}
+
+// func (n *NextTransform) GetBack(i int) *physics.Transform {
+// 	l := len(n.Transforms)
+// 	idx := (n.ReadIdx + l - 1 - i) % l
+// 	return &n.Transforms[idx]
+// }
+
+// // Returns the last one added (the newest element)
+// func (n *NextTransform) Last() *physics.Transform {
+// 	l := len(n.Transforms)
+// 	return &n.Transforms[(n.ReadIdx + l - 1) % l]
+// }
+
+// TODO - should this operate on pointers?
+func (n *NextTransform) Map(fn func(t ServerTransform)) {
+	if n.ReadIdx == n.WriteIdx {
+		return // Empty
+	}
+
+	l := len(n.Transforms)
+	firstIdx := n.ReadIdx
+	// lastIdx := n.WriteIdx
+	lastIdx := (n.WriteIdx + len(n.Transforms) - 1) % len(n.Transforms)
+
+	cnt := 0
+	// TODO - this might be simpler in two loops?
+	for i := firstIdx; i != lastIdx; i=(i + 1) % l {
+		fn(n.Transforms[i])
+		cnt++
+	}
+	// log.Print("Mapped: ", cnt)
+}
+
+// type NextTransform struct {
+// 	// PhyTrans physics.Transform
+// 	Idx int
+// 	Transforms []physics.Transform
+// 	Replayed bool
+// 	InterpStart physics.Transform
+// 	Interp float64
+// }
+// func NewTransformBuffer() NextTransform {
+// 	return NextTransform{
+// 		Idx: 0,
+// 		Transforms: make([]physics.Transform, 10),
+// 		Replayed: false,
+// 		Interp: 0,
+// 	}
+// }
+
+// func (n *NextTransform) Add(t physics.Transform) {
+// 	n.Transforms[n.Idx] = t
+// 	n.Idx = (n.Idx + 1) % len(n.Transforms)
+// }
+
+// // Returns the one after the last one added (the oldest element of the buffer, or the first element of the buffer)
+// func (n *NextTransform) First() *physics.Transform {
+// 	return &n.Transforms[n.Idx]
+// }
+
+// func (n *NextTransform) GetBack(i int) *physics.Transform {
+// 	l := len(n.Transforms)
+// 	idx := (n.Idx + l - 1 - i) % l
+// 	return &n.Transforms[idx]
+// }
+
+// // Returns the last one added (the newest element)
+// func (n *NextTransform) Last() *physics.Transform {
+// 	l := len(n.Transforms)
+// 	return &n.Transforms[(n.Idx + l - 1) % l]
+// }
+
+// func (n *NextTransform) Map(fn func(t physics.Transform)) {
+// 	l := len(n.Transforms)
+// 	firstIdx := n.Idx
+// 	lastIdx := (n.Idx + l - 1) % l
+
+// 	// TODO - this might be simpler in two loops?
+// 	for i := firstIdx; i != lastIdx; i=(i + 1) % l {
+// 		fn(n.Transforms[i])
+// 	}
+// }
+
 // type LastTransform physics.Transform
 // TODO - do a full fledged transform buffer
 // type TransformBuffer struct {
@@ -38,68 +211,239 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
 			ClientSendUpdate(world, sock, playerData)
 		}},
-		ecs.System{"ReplayInputBuffer", func(dt time.Duration) {
-			// Replays the remaining input buffer to try and guesstimate the player's position
-			inputBuffer := playerData.GetInputBuffer()
-			// log.Print("InputBuffer: ", len(inputBuffer))
-			playerId := playerData.Id()
-			transform, ok := ecs.Read[NextTransform](world, playerId)
-			if !ok { return } // Skip if player doesn't have a transform
-			collider, ok := ecs.Read[physics.CircleCollider](world, playerId)
-			if !ok { return } // Skip if player doesn't have a collider
-			if !transform.Replayed {
-				for i := range inputBuffer {
-					mmo.MoveCharacter(&inputBuffer[i].Input, &transform.PhyTrans, &collider, tilemap, ecs.FixedTimeStep)
-				}
-				transform.Replayed = true
-				ecs.Write(world, playerId, ecs.C(transform))
-			}
-		}},
+		// ecs.System{"ReplayInputBuffer", func(dt time.Duration) {
+		// 	playerId := playerData.Id()
+
+		// 	// Set ServerTransforms to NextTransforms
+		// 	serverTransform, ok := ecs.Read[ServerTransform](world, playerId)
+		// 	if !ok { return } // Skip if player doesn't have a transform
+
+		// 	// playerData.SetTicks(serverTransform.ServerTick, serverTransform.PlayerTick)
+
+		// 	transformBuffer, ok := ecs.Read[NextTransform](world, playerId)
+		// 	if !ok {
+		// 		// Create TransformBuffer if it doesn't exist
+		// 		transformBuffer = NewTransformBuffer()
+		// 	}
+		// 	if !serverTransform.Handled {
+		// 		serverTransform.Handled = true
+		// 		ecs.Write(world, playerId, ecs.C(serverTransform))
+
+		// 		curTransform, ok := ecs.Read[physics.Transform](world, playerId)
+		// 		if !ok {
+		// 			// Create TransformBuffer if it doesn't exist
+		// 			curTransform = physics.Transform{}
+		// 			ecs.Write(world, playerId, ecs.C(curTransform))
+		// 		}
+
+		// 		// transform.InterpStart = curTransform
+
+		// 		// Replays the remaining input buffer to try and guesstimate the player's position
+		// 		inputBuffer := playerData.GetInputBuffer()
+		// 		// log.Print("InputBuffer: ", len(inputBuffer))
+
+		// 		// transform, ok := ecs.Read[NextTransform](world, playerId)
+		// 		// if !ok { return } // Skip if player doesn't have a transform
+		// 		collider, ok := ecs.Read[physics.CircleCollider](world, playerId)
+		// 		if !ok { return } // Skip if player doesn't have a collider
+
+		// 		predictedTransform := serverTransform
+		// 		for i := range inputBuffer {
+		// 			for ii := 0; ii < 4; ii++ { // TODO - 4 because we do %4 on send rate
+		// 				mmo.MoveCharacter(&inputBuffer[i].Input, &(predictedTransform.Transform), &collider, tilemap, mmo.FixedTimeStep)
+		// 			}
+		// 		}
+
+		// 		transformBuffer.Add(predictedTransform)
+		// 		ecs.Write(world, playerId, ecs.C(transformBuffer))
+		// 	}
+		// }},
 		// Note: This must be after ReplayInputBuffer because if a replay happens, then we want to interpolate halfway there
 		ecs.System{"InterpolateSpritePositions", func(dt time.Duration) {
 			// TODO - hack. We needed a way to create the transform component for other players (because we did a change which makes us set NextTransform over the wire instead of transform. So those were never being set
 			// Logic: If has next transform, but doesn't have transform, then add transform
-			ecs.Map(world, func(id ecs.Id, nextT *NextTransform) {
+			// ecs.Map(world, func(id ecs.Id, nextT *NextTransform) {
+			// 	_, ok := ecs.Read[physics.Transform](world, id)
+			// 	if !ok {
+			// 		ecs.Write(world, id, ecs.C(physics.Transform{}))
+			// 	}
+			// })
+			ecs.Map(world, func(id ecs.Id, serverTransform *ServerTransform) {
 				_, ok := ecs.Read[physics.Transform](world, id)
 				if !ok {
 					ecs.Write(world, id, ecs.C(physics.Transform{}))
 				}
+				transformBuffer, ok := ecs.Read[NextTransform](world, id)
+				if !ok {
+					transformBuffer = NewTransformBuffer()
+				}
+
+				if !serverTransform.Handled {
+					serverTransform.Handled = true
+					ecs.Write(world, id, ecs.C(serverTransform))
+
+					transformBuffer.Add(*serverTransform)
+
+					// log.Print("GOTNEWNEWORKTICK")
+				}
+
+				ecs.Write(world, id, ecs.C(transformBuffer))
 			})
 
 			// This interpolates the transform position based on what the server just said it was
-			const maxInterp float64 = 5 * 16.0
+			const maxInterp float64 = 6 * 16.0
+			const minInterp float64 = 2.0
+			playerId := playerData.Id()
 			ecs.Map2(world, func(id ecs.Id, phyT *physics.Transform, nextT *NextTransform) {
-				// Snap, rather than interpolate if the distance is large enough
-				if phyT.DistanceTo(&nextT.PhyTrans) > maxInterp {
-					phyT.X = nextT.PhyTrans.X
-					phyT.Y = nextT.PhyTrans.Y
-					return
+
+				nextT.Remaining -= dt
+				// log.Print("Remaining: ", nextT.Remaining)
+				if nextT.Remaining <= 0 {
+					// log.Print("PULL NETWORK TICK")
+					dest, ok := nextT.Remove()
+
+					if ok {
+						start := nextT.InterpTo.Transform
+						// start := *phyT
+
+						// Replay interp
+						extrapolatedPos := physics.Transform{}
+						if id == playerId {
+							playerData.SetTicks(nextT.InterpTo.ServerTick, nextT.InterpTo.PlayerTick)
+
+							inputBuffer := playerData.GetInputBuffer()
+							log.Print("InputBufLen: ", len(inputBuffer))
+							collider, ok := ecs.Read[physics.CircleCollider](world, playerId)
+							if !ok { return } // Skip if player doesn't have a collider
+
+							for i := range inputBuffer {
+								for ii := 0; ii < 4; ii++ { // TODO - 4 because we do %4 on send rate
+									// mmo.MoveCharacter(&inputBuffer[i].Input, &dest.Transform, &collider, tilemap, mmo.FixedTimeStep)
+									mmo.MoveCharacter(&inputBuffer[i].Input, &extrapolatedPos, &collider, tilemap, mmo.FixedTimeStep)
+								}
+							}
+						}
+
+						nextT.InterpFrom = nextT.InterpTo
+						nextT.InterpFrom.Transform = start // TODO - does this make sense?
+						nextT.InterpTo = dest
+						nextT.Extrapolation = extrapolatedPos
+
+						// If deltaTicks is 1, it means that no packets were dropped
+						deltaTicks := nextT.InterpTo.ServerTick - nextT.InterpFrom.ServerTick
+						if deltaTicks > 10 {
+							deltaTicks = 1 // It's just so far off that we are probably going to snap anyways
+						} else if deltaTicks < 0 {
+							log.Print("NEGATIVE: ", nextT.InterpTo, nextT.InterpFrom)
+						}
+						// log.Print("DeltaTick: ", deltaTicks, nextT.InterpFrom.ServerTick, nextT.InterpTo.ServerTick)
+
+						// nextT.Total = time.Duration(deltaTicks) * nextT.AvgTickTime
+
+						// delayOffset := nextT.TargetDelay - nextT.Delay()
+						// // log.Print("DelayOffset: ", delayOffset, nextT.Len(), nextT.Delay(),  nextT.TargetDelay)
+						// slope := 1 // 4 = 16ms / 4
+						// timeOffset := delayOffset * slope
+						// nextT.Total = nextT.Total + time.Duration(timeOffset) * time.Millisecond
+						// // timeOffset := delayOffset * 1
+						// // nextT.Total = nextT.Total + time.Duration(timeOffset) * time.Microsecond
+						// // nextT.Total = nextT.Total + time.Duration(delayOffset) * time.Millisecond
+
+						// nextT.Remaining = nextT.Total - dt
+
+						nextT.Total = time.Duration(deltaTicks) * nextT.AvgTickTime
+						delayOffset := nextT.TargetDelay - nextT.Delay()
+						if delayOffset < 0 {
+							nextT.Total = nextT.Total - (17 * time.Millisecond)
+						}//  else if delayOffset > 0 {
+						// 	nextT.Total = nextT.Total + (17 * time.Millisecond)
+						// }
+						// nextT.Total = nextT.Total + time.Duration(delayOffset) * time.Millisecond
+						nextT.Remaining = nextT.Total
+
+						// log.Print("DelayOffset: ", deltaTicks, delayOffset, nextT.Len(), nextT.Delay(),  nextT.TargetDelay, nextT.Total, nextT.Remaining)
+
+						// log.Print("InterpWithTime: ", nextT.Remaining, nextT.Total)
+					} else {
+						log.Print("NONE TO REMOVE")
+					}
 				}
 
-				interpFactor := 0.1
-				// interpFactor := 1.0
-				phyT.X = interp.Linear.Float64(phyT.X, nextT.PhyTrans.X, interpFactor)
-				phyT.Y = interp.Linear.Float64(phyT.Y, nextT.PhyTrans.Y, interpFactor)
-				// interpFactor := 0.4
-				// phyT.X = interp.EaseIn.Float64(phyT.X, nextT.PhyTrans.X, interpFactor)
-				// phyT.Y = interp.EaseIn.Float64(phyT.Y, nextT.PhyTrans.Y, interpFactor)
+				// current := physics.V2(phyT.X, phyT.Y)
+				// next := physics.V2(nextT.InterpTo.X, nextT.InterpTo.Y)
+				// delta := next.Sub(current)
+
+				// Snap, rather than interpolate if the distance is large enough
+				// if delta.Len() > maxInterp {
+				// 	// phyT.X = nextT.InterpTo.X + nextT.ExtrapolationOffset.X
+				// 	// phyT.Y = nextT.InterpTo.Y + nextT.ExtrapolationOffset.Y
+				// 	phyT.X = nextT.InterpTo.X
+				// 	phyT.Y = nextT.InterpTo.Y
+				// 	return
+				// }
+
+				// if delta.Len() < minInterp {
+				// 	// phyT.X = nextT.InterpTo.X + nextT.ExtrapolationOffset.X
+				// 	// phyT.Y = nextT.InterpTo.Y + nextT.ExtrapolationOffset.Y
+				// 	// return
+				// }
+
+				interpFactor := 1 - (nextT.Remaining.Seconds() / nextT.Total.Seconds())
+				if interpFactor <= 1 {
+					old := *phyT
+					phyT.X = interp.Linear.Float64(nextT.InterpFrom.X, nextT.InterpTo.X, interpFactor)
+					phyT.Y = interp.Linear.Float64(nextT.InterpFrom.Y, nextT.InterpTo.Y, interpFactor)
+
+					log.Print("Trans: ", phyT.DistanceTo(&old), nextT.InterpFrom.DistanceTo(&nextT.InterpTo.Transform))
+
+					// // old := *phyT
+					// phyT.X = interp.Linear.Float64(nextT.InterpFrom.X, nextT.InterpTo.X, interpFactor)
+					// phyT.Y = interp.Linear.Float64(nextT.InterpFrom.Y, nextT.InterpTo.Y, interpFactor)
+					// // log.Print("INTERP: ", nextT.InterpStart, nextT.InterpTo, phyT, interpFactor)
+					// // log.Print("Trans: ", old, phyT, phyT.DistanceTo(&old), nextT.InterpFrom.DistanceTo(&nextT.InterpTo.Transform))
+
+					// log.Print("Extrap: ", phyT, nextT.Extrapolation)
+					// extraFactor := 0.1
+					// phyT.X = interp.Linear.Float64(phyT.X, phyT.X + nextT.Extrapolation.X, extraFactor)
+					// phyT.Y = interp.Linear.Float64(phyT.Y, phyT.X + nextT.Extrapolation.Y, extraFactor)
+
+					// nextT.Extrapolation.X -= nextT.Extrapolation.X * extraFactor
+					// nextT.Extrapolation.Y -= nextT.Extrapolation.Y * extraFactor
+				}
+
+				// extraFactor := 0.01
+				// nextT.ExtrapolationOffset.X = interp.Linear.Float64(nextT.ExtrapolationOffset.X, nextT.Extrapolation.X, extraFactor)
+				// nextT.ExtrapolationOffset.Y = interp.Linear.Float64(nextT.ExtrapolationOffset.Y, nextT.Extrapolation.Y, extraFactor)
+
+				// log.Print("Extrap: ", nextT.Extrapolation, nextT.ExtrapolationOffset)
+				// log.Print("InterpX: ", nextT.InterpFrom.X + nextT.ExtrapolationOffset.X, nextT.InterpTo.X + nextT.ExtrapolationOffset.X)
+				// log.Print("InterpY: ", nextT.InterpFrom.Y + nextT.ExtrapolationOffset.Y, nextT.InterpTo.Y + nextT.ExtrapolationOffset.Y)
+				// phyT.X += nextT.ExtrapolationOffset.X
+				// phyT.Y += nextT.ExtrapolationOffset.Y
 			})
 		}},
 	}
 
 	physicsSystems := []ecs.System{
-		ecs.System{"MoveCharacters", func(dt time.Duration) {
-			// TODO - Note: Keybinds is only included so that clients don't simulate another client's input, I should isolate these another way
-			ecs.Map4(world, func(id ecs.Id, input *physics.Input, keybinds *render.Keybinds, nextTrans *NextTransform, collider *physics.CircleCollider) {
-			// ecs.Map3(world, func(id ecs.Id, input *physics.Input, nextTrans *NextTransform, collider *physics.CircleCollider) {
-				mmo.MoveCharacter(input, &nextTrans.PhyTrans, collider, tilemap, dt)
-			})
-		}},
+		// ecs.System{"MoveCharacters", func(dt time.Duration) {
+		// 	// TODO - Note: Keybinds is only included so that clients don't simulate another client's input, I should isolate these another way
+		// 	ecs.Map4(world, func(id ecs.Id, input *physics.Input, keybinds *render.Keybinds, nextTrans *NextTransform, collider *physics.CircleCollider) {
+
+		// 		next := nextTrans.First()
+		// 		mmo.MoveCharacter(input, next, collider, tilemap, dt)
+
+		// 		// mmo.MoveCharacter(input, &nextTrans.PhyTrans, collider, tilemap, dt)
+		// 	})
+		// }},
 		ecs.System{"SetupColliders", func(dt time.Duration) {
 			// Set the collider position
 			ecs.Map2(world, func(id ecs.Id, transform *NextTransform, col *physics.CircleCollider) {
-				col.CenterX = transform.PhyTrans.X
-				col.CenterY = transform.PhyTrans.Y
+				next := transform.InterpTo
+				col.CenterX = next.X
+				col.CenterY = next.Y
+
+				// col.CenterX = transform.PhyTrans.X
+				// col.CenterY = transform.PhyTrans.Y
 			})
 		}},
 		ecs.System{"CheckCollisions", func(dt time.Duration) {
@@ -110,7 +454,14 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 	return clientSystems
 }
 
+var everyOther int
+
 func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.PlayerData) {
+	everyOther = (everyOther + 1) % 4
+	if everyOther != 0 {
+		return // skip
+	}
+
 	playerId := playerData.Id()
 	// if clientConn is closed for some reason, then we won't be able to send
 	// TODO - With the atomic this fast enough?
@@ -180,7 +531,15 @@ func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.
 	// })
 }
 
+// var AvgWorldUpdateTime time.Duration
 func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel chan serdes.WorldUpdate) error {
+	// lastWorldUpdate := time.Now()
+	// bufLen := 100
+	// worldUpdateTimes := mmo.NewRingBuffer(bufLen)
+	// for i := 0; i < bufLen; i++ {
+	// 	worldUpdateTimes.Add(4 * mmo.FixedTimeStep) // TODO! - hardcoded
+	// }
+
 	for {
 		msg, err := sock.Recv()
 		if errors.Is(err, net.ErrNetwork) {
@@ -196,7 +555,20 @@ func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel 
 
 		switch t := msg.(type) {
 		case serdes.WorldUpdate:
-			playerData.SetTicks(t.Tick, t.PlayerTick)
+			// {
+			// 	worldUpdateTimes.Add(time.Since(lastWorldUpdate))
+			// 	lastWorldUpdate = time.Now()
+			// 	buf := worldUpdateTimes.Buffer()
+			// 	AvgWorldUpdateTime = 0
+			// 	for i := range buf {
+			// 		AvgWorldUpdateTime += buf[i]
+			// 	}
+			// 	AvgWorldUpdateTime = AvgWorldUpdateTime / time.Duration(len(buf))
+			// 	log.Print("AvgWorldUpdateTime: ", AvgWorldUpdateTime)
+			// }
+
+			// log.Print("Client-NewWorldUpdate")
+			// playerData.SetTicks(t.Tick, t.PlayerTick)
 
 			// Note: Because the client received this speech bubble update from the server, we will handle the HandleSent() so that the client doesn't try to resend it to the server.
 			// This code just calls HandleSent() on the player's speech bubble if they just received their own speech bubble
@@ -228,15 +600,22 @@ func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel 
 
 			for j, compSlice := range t.WorldData {
 				for i, c := range compSlice {
-					switch t := c.(type) {
+					switch tt := c.(type) {
 					case ecs.CompBox[physics.Transform]:
-						nextTransform := NextTransform{
-							PhyTrans: t.Get(),
-							Replayed: false,
+						serverTransform := ServerTransform{
+							Transform: tt.Get(),
+							Handled: false,
+							ServerTick: t.Tick,
+							PlayerTick: t.PlayerTick,
 						}
-						serverTransform := ServerTransform(t.Get())
-						compSlice[i] = ecs.C(nextTransform)
-						compSlice = append(compSlice, ecs.C(serverTransform))
+						compSlice[i] = ecs.C(serverTransform)
+						// nextTransform := NextTransform{
+						// 	PhyTrans: t.Get(),
+						// 	Replayed: false,
+						// }
+						// serverTransform := ServerTransform(t.Get())
+						// compSlice[i] = ecs.C(nextTransform)
+						// compSlice = append(compSlice, ecs.C(serverTransform))
 					}
 				}
 				t.WorldData[j] = compSlice

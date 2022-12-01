@@ -331,7 +331,7 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tile.Tilemap {
 
 func MoveCharacter(input *physics.Input, transform *physics.Transform, collider *physics.CircleCollider, tilemap *tile.Tilemap, dt time.Duration) {
 	// Note: 100 good starting point, 200 seemed like a good max
-	speed := 125.0
+	speed := 200 * dt.Seconds()
 
 	tile, ok := tilemap.Get(tilemap.PositionToTile(float32(transform.X), float32(transform.Y)))
 	if ok {
@@ -343,18 +343,28 @@ func MoveCharacter(input *physics.Input, transform *physics.Transform, collider 
 
 	// oldTransform := *transform
 
+	// Note: if you change this back to individual axes, then all other physics needs to change as a result (and network physics prediction/interp logic)
+	move := physics.V2(0,0)
 	if input.Left {
-		transform.X -= speed * dt.Seconds()
+		move.X = -1
+		// transform.X -= speed
 	}
 	if input.Right {
-		transform.X += speed * dt.Seconds()
+		move.X = 1
+		// transform.X += speed
 	}
 	if input.Up {
-		transform.Y += speed * dt.Seconds()
+		move.Y = 1
+		// transform.Y += speed
 	}
 	if input.Down {
-		transform.Y -= speed * dt.Seconds()
+		move.Y = -1
+		// transform.Y -= speed
 	}
+
+	move = move.Norm().Scaled(speed)
+	transform.X += move.X
+	transform.Y += move.Y
 
 	// newTile, ok := tilemap.Get(tilemap.PositionToTile(float32(transform.X), float32(transform.Y)))
 	// if !ok {
@@ -443,6 +453,13 @@ func CheckCollisions(world *ecs.World) {
 	// 		targetCollider := ecs.Read[physics.CircleCollider](world, targetId)
 	// 	}
 	// })
+}
+
+const FixedTimeStep time.Duration =  16 * time.Millisecond
+func GetScheduler() *ecs.Scheduler {
+	schedule := ecs.NewScheduler()
+	schedule.SetFixedTimeStep(FixedTimeStep)
+	return schedule
 }
 
 type LastUpdate struct {

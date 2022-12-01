@@ -51,7 +51,11 @@ func Main() {
 	quit := ecs.Signal{}
 	quit.Set(false)
 
-	go ecs.RunGameFixed(serverSystems, &quit)
+	schedule := mmo.GetScheduler()
+	schedule.AppendPhysics(serverSystems...)
+	go schedule.Run(&quit)
+
+	// go ecs.RunGameFixed(serverSystems, &quit)
 
 	go server.Start()
 

@@ -156,7 +156,9 @@ func runMenu(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			win.Update()
 		}},
 	}
-	ecs.RunGame(nil, nil, renderSystems, &quit)
+	schedule := mmo.GetScheduler()
+	schedule.AppendRender(renderSystems...)
+	schedule.Run(&quit)
 }
 
 func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spritesheet, shader *glitch.Shader, atlas *glitch.Atlas) {
@@ -164,7 +166,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	if err != nil { panic(err) }
 
 	world := ecs.NewWorld()
-	networkChannel := make(chan serdes.WorldUpdate, 1024)
+	networkChannel := make(chan serdes.WorldUpdate, 1024) // TODO - arbitrary 1024
 
 	// This is the player's ID, by default we set this to invalid
 	playerData := mmo.NewPlayerData()
@@ -332,7 +334,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			}
 		}},
 		ecs.System{"SetAnimationFromState", func(dt time.Duration) {
-			ecs.Map2(world, func(id ecs.Id, input *physics.Input, anim *Animation) {
+			minAnim := 2.0
+			ecs.Map4(world, func(id ecs.Id, input *physics.Input, anim *Animation, phyT *physics.Transform, nextT *NextTransform) {
 				if input.Left && !input.Right {
 					anim.Direction = "left"
 					anim.SetAnimation("run_left")
@@ -341,10 +344,22 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					anim.SetAnimation("run_right")
 				} else if input.Up || input.Down {
 					anim.SetAnimation("run_" + anim.Direction)
-				} else if input.Left && input.Right {
-					anim.SetAnimation("idle_" + anim.Direction)
 				} else {
-					anim.SetAnimation("idle_" + anim.Direction)
+					// if phyT.DistanceTo(&nextT.PhyTrans) > minAnim {
+					// 	return // Don't set idle because we are still interpolating to our destination
+					// }
+					// next := nextT.First()
+					next, ok := nextT.PeekLast()
+					if !ok { return } // TODO - notsure what to do here
+					if phyT.DistanceTo(&next.Transform) > minAnim {
+						return // Don't set idle because we are still interpolating to our destination
+					}
+
+					if input.Left && input.Right {
+						anim.SetAnimation("idle_" + anim.Direction)
+					} else {
+						anim.SetAnimation("idle_" + anim.Direction)
+					}
 				}
 			})
 		}},
@@ -402,20 +417,49 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 
 			// Debug. Draw neworking position buffer
 			if debugMode {
+				pass.SetLayer(0)
 				ecs.Map2(world, func(id ecs.Id, t *physics.Transform, nt *NextTransform) {
 
-					npos := nt.PhyTrans
+					// npos := nt.PhyTrans
+					// npos := nt.Last()
+					// mat := glitch.Mat4Ident
+					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(npos.X), float32(npos.Y + npos.Height), 0)
+					// debugSprite.Draw(pass, mat)
+
+					// Interp Replay buffer
+					nt.Map(func(t ServerTransform) {
+						mat := glitch.Mat4Ident
+						mat.Scale(0.5, 0.5, 1.0).Translate(float32(t.X), float32(t.Y + t.Height), 0)
+						debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 1, 0, 0.5})
+					})
+
 					mat := glitch.Mat4Ident
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(npos.X), float32(npos.Y + npos.Height), 0)
-					debugSprite.Draw(pass, mat)
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(1920/2 + nt.ExtrapolationOffset.X), float32(1080/2 + nt.ExtrapolationOffset.Y + nt.Extrapolation.Height), 0)
+					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 0, 0, 1})
+
+					mat = glitch.Mat4Ident
+					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpFrom.X + nt.Extrapolation.X), float32(nt.InterpFrom.Y + nt.Extrapolation.Y + nt.Extrapolation.Height), 0)
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(1920/2 + nt.Extrapolation.X), float32(1080/2 + nt.Extrapolation.Y + nt.Extrapolation.Height), 0)
+					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 1, 1, 1})
+
+
+					// mat := glitch.Mat4Ident
+					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpFrom.X), float32(nt.InterpFrom.Y + nt.InterpFrom.Height), 0)
+					// debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 0, 0, 1})
+
+					// mat = glitch.Mat4Ident
+					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpTo.X), float32(nt.InterpTo.Y + nt.InterpTo.Height), 0)
+					// debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 1, 1, 1})
 				})
 
-				ecs.Map(world, func(id ecs.Id, t *ServerTransform) {
-					mat := glitch.Mat4Ident
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(t.X), float32(t.Y + t.Height), 0)
-					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 0, 0, 1})
-				})
+				// Last Server Position
+				// ecs.Map(world, func(id ecs.Id, t *ServerTransform) {
+				// 	mat := glitch.Mat4Ident
+				// 	mat.Scale(0.5, 0.5, 1.0).Translate(float32(t.X), float32(t.Y + t.Height), 0)
+				// 	debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 0, 0, 1})
+				// })
 			}
+			pass.SetLayer(glitch.DefaultLayer)
 
 			// Draw speech bubbles
 			{
@@ -548,7 +592,20 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		}},
 	}
 
-	ecs.RunGame(inputSystems, physicsSystems, renderSystems, &quit)
+	schedule := mmo.GetScheduler()
+
+	// physicsSystems = append(physicsSystems, ecs.System{"UpdateWindow", func(dt time.Duration) {
+	// 	syslog := schedule.Syslog()
+	// 	for i := range syslog {
+	// 		log.Print(syslog[i])
+	// 	}
+	// }})
+	schedule.AppendInput(inputSystems...)
+	schedule.AppendPhysics(physicsSystems...)
+	schedule.AppendRender(renderSystems...)
+
+	schedule.Run(&quit)
+	// ecs.RunGame(inputSystems, physicsSystems, renderSystems, &quit)
 	log.Print("Finished ecs.RunGame")
 
 	// TODO - I'm not sure if this is the proper way to close because `ClientReceive` is still reading, so closing here will cause that to fail
