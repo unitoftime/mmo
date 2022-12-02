@@ -12,6 +12,8 @@ import (
 	"flag"
 	"crypto/tls"
 
+	"github.com/zyedidia/generic/queue"
+
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -244,11 +246,14 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	camera := render.NewCamera(win.Bounds(), 0, 0)
 	camera.Zoom = 2.0
 
+	updateQueue := queue.New[serdes.WorldUpdate]()
+
 	quit := ecs.Signal{}
 	quit.Set(false)
 
 	inputSystems := []ecs.System{
-		mmo.CreatePollNetworkSystem(world, networkChannel),
+		ClientPollNetworkSystem(networkChannel, updateQueue),
+		ClientPullFromUpdateQueue(world, updateQueue, playerData),
 		ecs.System{"ManageEntityTimeout", func(dt time.Duration) {
 			timeout := 5 * time.Second
 			now := time.Now()
@@ -443,13 +448,13 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 1, 1, 1})
 
 
-					// mat := glitch.Mat4Ident
-					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpFrom.X), float32(nt.InterpFrom.Y + nt.InterpFrom.Height), 0)
-					// debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 0, 0, 1})
+					mat = glitch.Mat4Ident
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpFrom.X), float32(nt.InterpFrom.Y + nt.InterpFrom.Height), 0)
+					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 0, 0, 1})
 
-					// mat = glitch.Mat4Ident
-					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpTo.X), float32(nt.InterpTo.Y + nt.InterpTo.Height), 0)
-					// debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 1, 1, 1})
+					mat = glitch.Mat4Ident
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpTo.X), float32(nt.InterpTo.Y + nt.InterpTo.Height), 0)
+					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 1, 0, 1})
 				})
 
 				// Last Server Position
