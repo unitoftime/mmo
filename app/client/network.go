@@ -32,7 +32,7 @@ func ClientPollNetworkSystem(networkChannel chan serdes.WorldUpdate,
 }
 
 func ClientPullFromUpdateQueue(world *ecs.World, updateQueue *queue.Queue[serdes.WorldUpdate], playerData *mmo.PlayerData) ecs.System {
-	// TODO - dynamic based on connection
+	// TODO! - dynamic based on connection
 	targetQueueSize := 3
 
 	var everyOther int
@@ -50,7 +50,7 @@ func ClientPullFromUpdateQueue(world *ecs.World, updateQueue *queue.Queue[serdes
 			queueSize++
 		})
 		if queueSize > targetQueueSize {
-			log.Print("UpdateQueue Desynchronization (TooBig): ", queueSize, targetQueueSize)
+			// log.Print("UpdateQueue Desynchronization (TooBig): ", queueSize, targetQueueSize)
 			// We want the next tick to run a little bit faster.
 			// TODO - Optimization Note: The bigger you make the addition, the faster it gets back to target length, but the more dramatic the entity needs to be sped up to interp that distance. I could also change the %4 to %8 to make the speedup even more minimal. Right now this doesn't seem to noticeable
 			everyOther = (everyOther + 1) % 4
@@ -59,7 +59,7 @@ func ClientPullFromUpdateQueue(world *ecs.World, updateQueue *queue.Queue[serdes
 		// 	everyOther = (everyOther + 3) % 4 // Go back one and rerun
 		// 	return
 		// }
-		log.Print("UpdateQueueSize: ", queueSize)
+		// log.Print("UpdateQueueSize: ", queueSize)
 
 		if updateQueue.Empty() {
 			log.Print("UpdateQueue is Empty!")

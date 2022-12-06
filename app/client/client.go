@@ -18,11 +18,11 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/unitoftime/ecs"
-
 	"github.com/unitoftime/glitch"
 	"github.com/unitoftime/glitch/shaders"
 	"github.com/unitoftime/glitch/ui"
 
+	"github.com/unitoftime/flow/interp"
 	"github.com/unitoftime/flow/asset"
 	"github.com/unitoftime/flow/render"
 	"github.com/unitoftime/flow/physics"
@@ -339,6 +339,31 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			}
 		}},
 		ecs.System{"SetAnimationFromState", func(dt time.Duration) {
+			// playerId := playerData.Id()
+			// playerPhyT, _ := ecs.Read[physics.Transform](world, playerId)
+
+			ecs.Map2(world, func(id ecs.Id, phyT *physics.Transform, nextT *NextTransform) {
+				nextT.Remaining -= dt
+
+				interpFactor := 1 - (nextT.Remaining.Seconds() / nextT.Total.Seconds())
+				if interpFactor > 1 { // TODO - can I prevent this from going above, makes it stop for a second/frame
+					interpFactor = 1
+				}
+
+				// old := *phyT
+				// phyT.X = interp.Linear.Float64(nextT.InterpFrom.X, nextT.InterpTo.X, interpFactor)
+				// phyT.Y = interp.Linear.Float64(nextT.InterpFrom.Y, nextT.InterpTo.Y, interpFactor)
+				phyT.X = interp.Linear.Float64(nextT.InterpFrom.X, nextT.ExtrapolationOffset.X, interpFactor)
+				phyT.Y = interp.Linear.Float64(nextT.InterpFrom.Y, nextT.ExtrapolationOffset.Y, interpFactor)
+
+				// log.Print("Trans: ", interpFactor, phyT.Sub(&playerPhyT), phyT.Sub(&old))
+
+
+				iFactor := 0.2
+				nextT.ExtrapolationOffset.X = interp.Linear.Float64(nextT.ExtrapolationOffset.X, nextT.Extrapolation.X, iFactor)
+				nextT.ExtrapolationOffset.Y = interp.Linear.Float64(nextT.ExtrapolationOffset.Y, nextT.Extrapolation.Y, iFactor)
+			})
+
 			minAnim := 2.0
 			ecs.Map4(world, func(id ecs.Id, input *physics.Input, anim *Animation, phyT *physics.Transform, nextT *NextTransform) {
 				if input.Left && !input.Right {
@@ -439,14 +464,13 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					})
 
 					mat := glitch.Mat4Ident
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(1920/2 + nt.ExtrapolationOffset.X), float32(1080/2 + nt.ExtrapolationOffset.Y + nt.Extrapolation.Height), 0)
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.ExtrapolationOffset.X), float32(nt.ExtrapolationOffset.Y + nt.Extrapolation.Height), 0)
 					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 0, 0, 1})
 
 					mat = glitch.Mat4Ident
 					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpFrom.X + nt.Extrapolation.X), float32(nt.InterpFrom.Y + nt.Extrapolation.Y + nt.Extrapolation.Height), 0)
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(1920/2 + nt.Extrapolation.X), float32(1080/2 + nt.Extrapolation.Y + nt.Extrapolation.Height), 0)
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.Extrapolation.X), float32(nt.Extrapolation.Y + nt.Extrapolation.Height), 0)
 					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 1, 1, 1})
-
 
 					mat = glitch.Mat4Ident
 					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpFrom.X), float32(nt.InterpFrom.Y + nt.InterpFrom.Height), 0)
@@ -463,7 +487,22 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				// 	mat.Scale(0.5, 0.5, 1.0).Translate(float32(t.X), float32(t.Y + t.Height), 0)
 				// 	debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 0, 0, 1})
 				// })
+
+				inputBuffer := playerData.GetInputBuffer()
+				tBuffer, _ := ecs.Read[NextTransform](world, playerData.Id())
+				collider, _ := ecs.Read[physics.CircleCollider](world, playerData.Id())
+				extPos := tBuffer.PreExtInterpTo.Transform
+				for i := range inputBuffer {
+					// for ii := 0; ii < 4; ii++ { // TODO - 4 because we do %4 on send rate
+						mmo.MoveCharacter(&inputBuffer[i].Input, &extPos, &collider, tilemap, mmo.FixedTimeStep)
+					// }
+
+					mat := glitch.Mat4Ident
+					mat.Scale(0.25, 0.25, 1.0).Translate(float32(extPos.X), float32(extPos.Y + extPos.Height), 0)
+					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 1, 1, 1})
+				}
 			}
+
 			pass.SetLayer(glitch.DefaultLayer)
 
 			// Draw speech bubbles

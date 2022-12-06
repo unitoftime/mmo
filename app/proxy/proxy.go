@@ -89,7 +89,8 @@ func Main(config Config) {
 	}
 
 	wsConfig := net.Config{
-		Url: "wss://"+hostname,
+		Url: "webrtc://"+hostname,
+		// Url: "wss://"+hostname,
 		Serdes: serdes.New(),
 		TlsConfig: tlsConfig,
 		HttpServer: &http.Server{
@@ -188,6 +189,7 @@ func ServeNetConn(sock *net.Socket, serverConn *net.Socket, room *Room) {
 
 	// Send login message to server
 	log.Debug().Uint64(stat.UserId, userId).Msg("Sending Login Message")
+	log.Print("ServerConn Status:", serverConn)
 	err := serverConn.Send(serdes.ClientLogin{userId})
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to forward login message")

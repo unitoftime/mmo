@@ -12,7 +12,7 @@ import (
 
 	"github.com/unitoftime/flow/physics"
 	"github.com/unitoftime/flow/render"
-	"github.com/unitoftime/flow/interp"
+	// "github.com/unitoftime/flow/interp"
 	"github.com/unitoftime/flow/tile"
 	"github.com/unitoftime/flow/net"
 
@@ -34,8 +34,9 @@ type NextTransform struct {
 	ReadIdx, WriteIdx int
 	Transforms []ServerTransform
 	Replayed bool
-	InterpTo ServerTransform
-	InterpFrom ServerTransform
+	PreExtInterpTo ServerTransform // The position to interp to before we add extrapolation
+	InterpTo ServerTransform // The current position to interp to
+	InterpFrom ServerTransform // The current position to interp from
 	Interp float64
 
 	Extrapolation physics.Transform // This is the extrapolated position for the currently interpolated tick
@@ -283,7 +284,7 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 				}
 
 				if !serverTransform.Handled {
-					log.Print("New ServerTransform")
+					// log.Print("New ServerTransform")
 					serverTransform.Handled = true
 					ecs.Write(world, id, ecs.C(serverTransform))
 
@@ -293,7 +294,10 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 					transformBuffer.InterpFrom.Transform = phyT
 					transformBuffer.InterpTo = *serverTransform
 
-					transformBuffer.Total = 64 * time.Millisecond
+					transformBuffer.Total = 64 * time.Millisecond //TODO! - Hardcoding 4x fixed time step
+					// Note: Add like a single frame of time to the total so that we get there a little bit slower. Ideally this would smooth the transitions between frames b/c we'd always lag behind.
+					transformBuffer.Total = transformBuffer.Total + 32 * time.Millisecond
+
 					transformBuffer.Remaining = transformBuffer.Total
 
 					// Extrapolate with trimmed player input buffer
@@ -301,15 +305,15 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 					if id == playerId {
 
 						inputBuffer := playerData.GetInputBuffer()
-						log.Print("InputBufLen: ", len(inputBuffer))
+						// log.Print("InputBufLen: ", len(inputBuffer))
 						collider, ok := ecs.Read[physics.CircleCollider](world, playerId)
 						if !ok { return } // Skip if player doesn't have a collider
 
 						for i := range inputBuffer {
-							for ii := 0; ii < 4; ii++ { // TODO - 4 because we do %4 on send rate
+							// for ii := 0; ii < 4; ii++ { // TODO - 4 because we do %4 on send rate
 								// mmo.MoveCharacter(&inputBuffer[i].Input, &dest.Transform, &collider, tilemap, mmo.FixedTimeStep)
 								mmo.MoveCharacter(&inputBuffer[i].Input, &extrapolatedPos, &collider, tilemap, mmo.FixedTimeStep)
-							}
+							// }
 						}
 						transformBuffer.Extrapolation = extrapolatedPos
 						// transformBuffer.ExtrapolationOffset.X = transformBuffer.ExtrapolationOffset.X
@@ -317,32 +321,38 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 						// TODO! - this looks bad when there is high packet loss. This is caused by multiple inputs that the client sends getting compressed into a single tick.
 						// transformBuffer.InterpTo.Transform.X += extrapolatedPos.X
 						// transformBuffer.InterpTo.Transform.Y += extrapolatedPos.X
-						transformBuffer.InterpTo.Transform.X = extrapolatedPos.X
-						transformBuffer.InterpTo.Transform.Y = extrapolatedPos.Y
-						log.Print("Extrap: ", extrapolatedPos, transformBuffer.InterpFrom.Transform, transformBuffer.InterpTo.Transform)
+						transformBuffer.PreExtInterpTo = transformBuffer.InterpTo
+						// transformBuffer.InterpTo.Transform.X = extrapolatedPos.X
+						// transformBuffer.InterpTo.Transform.Y = extrapolatedPos.Y
+						// log.Print("Extrap: ", extrapolatedPos, transformBuffer.InterpFrom.Transform, transformBuffer.InterpTo.Transform)
 					}
 				}
 
 				ecs.Write(world, id, ecs.C(transformBuffer))
 			})
 
-			playerPhyT, _ := ecs.Read[physics.Transform](world, playerId)
+			// NOTE: I moved this to render tick to smooth it out a bit more
+			// playerPhyT, _ := ecs.Read[physics.Transform](world, playerId)
+			// ecs.Map2(world, func(id ecs.Id, phyT *physics.Transform, nextT *NextTransform) {
+			// 	nextT.Remaining -= dt
 
-			ecs.Map2(world, func(id ecs.Id, phyT *physics.Transform, nextT *NextTransform) {
-				nextT.Remaining -= dt
+			// 	interpFactor := 1 - (nextT.Remaining.Seconds() / nextT.Total.Seconds())
+			// 	if interpFactor > 1 { // TODO - can I prevent this from going above, makes it stop for a second/frame
+			// 		interpFactor = 1
+			// 	}
 
-				interpFactor := 1 - (nextT.Remaining.Seconds() / nextT.Total.Seconds())
-				if interpFactor > 1 { // TODO - can I prevent this from going above, makes it stop for a second/frame
-					interpFactor = 1
-				}
+			// 	old := *phyT
+			// 	phyT.X = interp.Linear.Float64(nextT.InterpFrom.X, nextT.InterpTo.X, interpFactor)
+			// 	phyT.Y = interp.Linear.Float64(nextT.InterpFrom.Y, nextT.InterpTo.Y, interpFactor)
 
-				old := *phyT
-				phyT.X = interp.Linear.Float64(nextT.InterpFrom.X, nextT.InterpTo.X, interpFactor)
-				phyT.Y = interp.Linear.Float64(nextT.InterpFrom.Y, nextT.InterpTo.Y, interpFactor)
+			// 	log.Print("Trans: ", interpFactor, phyT.Sub(&playerPhyT), phyT.Sub(&old))
+			// })
 
-				log.Print("Trans: ", phyT.Sub(&playerPhyT), phyT.Sub(&old))
-			})
 
+
+
+
+			
 			// // TODO - Note: Keybinds is only included so that clients don't simulate another client's input, I should isolate these another way
 			// ecs.Map4(world, func(id ecs.Id, input *physics.Input, keybinds *render.Keybinds, nextTrans *NextTransform, collider *physics.CircleCollider) {
 			// 	// Extrapolate with trimmed player input buffer
@@ -575,10 +585,10 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 var everyOther int
 
 func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.PlayerData) {
-	everyOther = (everyOther + 1) % 4
-	if everyOther != 0 {
-		return // skip
-	}
+	// everyOther = (everyOther + 1) % 4
+	// if everyOther != 0 {
+	// 	return // skip
+	// }
 
 	playerId := playerData.Id()
 	// if clientConn is closed for some reason, then we won't be able to send
@@ -629,9 +639,12 @@ func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.
 
 	// log.Print(update)
 
-	err := clientConn.Send(update)
-	if err != nil {
-		log.Warn().Err(err).Msg("ClientSendUpdate")
+	// Duplicate Sends to counter packet loss
+	for i := 0; i < 4; i++ {
+		err := clientConn.Send(update)
+		if err != nil {
+			log.Warn().Err(err).Msg("ClientSendUpdate")
+		}
 	}
 
 	// ecs.Map2(world, func(id ecs.Id, _ *ClientOwned, input *physics.Input) {
@@ -651,7 +664,7 @@ func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.
 
 var AvgWorldUpdateTime time.Duration
 func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel chan serdes.WorldUpdate) error {
-	lastWorldUpdate := time.Now()
+	// lastWorldUpdate := time.Now()
 	bufLen := 100
 	worldUpdateTimes := mmo.NewRingBuffer(bufLen)
 	for i := 0; i < bufLen; i++ {
@@ -673,17 +686,18 @@ func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel 
 
 		switch t := msg.(type) {
 		case serdes.WorldUpdate:
-			{
-				worldUpdateTimes.Add(time.Since(lastWorldUpdate))
-				lastWorldUpdate = time.Now()
-				buf := worldUpdateTimes.Buffer()
-				AvgWorldUpdateTime = 0
-				for i := range buf {
-					AvgWorldUpdateTime += buf[i]
-				}
-				AvgWorldUpdateTime = AvgWorldUpdateTime / time.Duration(len(buf))
-				log.Print("AvgWorldUpdateTime: ", AvgWorldUpdateTime)
-			}
+			// log.Print("Ticks: ", t.Tick, t.PlayerTick)
+			// {
+			// 	worldUpdateTimes.Add(time.Since(lastWorldUpdate))
+			// 	lastWorldUpdate = time.Now()
+			// 	buf := worldUpdateTimes.Buffer()
+			// 	AvgWorldUpdateTime = 0
+			// 	for i := range buf {
+			// 		AvgWorldUpdateTime += buf[i]
+			// 	}
+			// 	AvgWorldUpdateTime = AvgWorldUpdateTime / time.Duration(len(buf))
+			// 	// log.Print("AvgWorldUpdateTime: ", AvgWorldUpdateTime)
+			// }
 
 			// log.Print("Client-NewWorldUpdate")
 			// playerData.SetTicks(t.Tick, t.PlayerTick)
@@ -737,6 +751,10 @@ func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel 
 					}
 				}
 				t.WorldData[j] = compSlice
+
+				// for i := range compSlice {
+				// 	log.Printf("%T\n", compSlice[i])
+				// }
 			}
 
 			networkChannel <- t

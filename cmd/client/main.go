@@ -28,7 +28,8 @@ func main() {
 
 	// TODO - catch panics, exits and finish exporting mem and cpu prof
 	client.Main(client.Config{
-		ProxyUri: "wss://localhost:7777",
+		ProxyUri: "webrtc://localhost:7777",
+		// ProxyUri: "wss://localhost:7777",
 		// ProxyUri: "wss://mmo.unit.dev:443",
 		Test: true,
 	})

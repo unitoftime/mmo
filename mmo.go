@@ -331,7 +331,7 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tile.Tilemap {
 
 func MoveCharacter(input *physics.Input, transform *physics.Transform, collider *physics.CircleCollider, tilemap *tile.Tilemap, dt time.Duration) {
 	// Note: 100 good starting point, 200 seemed like a good max
-	speed := 200 * dt.Seconds()
+	speed := 125 * dt.Seconds()
 
 	tile, ok := tilemap.Get(tilemap.PositionToTile(float32(transform.X), float32(transform.Y)))
 	if ok {
@@ -341,30 +341,42 @@ func MoveCharacter(input *physics.Input, transform *physics.Transform, collider 
 		}
 	}
 
-	// oldTransform := *transform
-
-	// Note: if you change this back to individual axes, then all other physics needs to change as a result (and network physics prediction/interp logic)
-	move := physics.V2(0,0)
 	if input.Left {
-		move.X = -1
-		// transform.X -= speed
+		transform.X -= speed
 	}
 	if input.Right {
-		move.X = 1
-		// transform.X += speed
+		transform.X += speed
 	}
 	if input.Up {
-		move.Y = 1
-		// transform.Y += speed
+		transform.Y += speed
 	}
 	if input.Down {
-		move.Y = -1
-		// transform.Y -= speed
+		transform.Y -= speed
 	}
 
-	move = move.Norm().Scaled(speed)
-	transform.X += move.X
-	transform.Y += move.Y
+	// oldTransform := *transform
+
+	// move := physics.V2(0,0)
+	// if input.Left {
+	// 	move.X = -1
+	// 	// transform.X -= speed
+	// }
+	// if input.Right {
+	// 	move.X = 1
+	// 	// transform.X += speed
+	// }
+	// if input.Up {
+	// 	move.Y = 1
+	// 	// transform.Y += speed
+	// }
+	// if input.Down {
+	// 	move.Y = -1
+	// 	// transform.Y -= speed
+	// }
+
+	// move = move.Norm().Scaled(speed)
+	// transform.X += move.X
+	// transform.Y += move.Y
 
 	// newTile, ok := tilemap.Get(tilemap.PositionToTile(float32(transform.X), float32(transform.Y)))
 	// if !ok {
