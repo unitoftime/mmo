@@ -42,6 +42,7 @@ func ClientPullFromUpdateQueue(world *ecs.World, updateQueue *queue.Queue[serdes
 
 	// Read a single element from the update queue
 	sys := ecs.System{"PullUpdateQueue", func(dt time.Duration) {
+		//TODO! - IMPORTANT If I pull out like tick 100, then next tick 102, I know that those should be (2 * 64ms) apart and not 64 ms apart. I somehow need to fix that problem for when dropped packets are recv'ed. Or I need to split the difference and enqueue another thing
 		everyOther = (everyOther + 1) % 4
 		if everyOther != 0 {
 			return // skip

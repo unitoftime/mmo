@@ -341,30 +341,27 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			// playerId := playerData.Id()
 			// playerPhyT, _ := ecs.Read[phy2.Transform](world, playerId)
 
-			ecs.Map2(world, func(id ecs.Id, pos *phy2.Pos, nextT *NextTransform) {
-				nextT.Remaining -= dt
+			ecs.Map2(world, func(id ecs.Id, pos *phy2.Pos, netPos *NetPos) {
+				netPos.Remaining -= dt
 
-				interpFactor := 1 - (nextT.Remaining.Seconds() / nextT.Total.Seconds())
+				interpFactor := 1 - (netPos.Remaining.Seconds() / netPos.Total.Seconds())
 				if interpFactor > 1 { // TODO - can I prevent this from going above, makes it stop for a second/frame
 					interpFactor = 1
 				}
 
-				// old := *phyT
-				// phyT.X = interp.Linear.Float64(nextT.InterpFrom.X, nextT.InterpTo.X, interpFactor)
-				// phyT.Y = interp.Linear.Float64(nextT.InterpFrom.Y, nextT.InterpTo.Y, interpFactor)
-				pos.X = interp.Linear.Float64(nextT.InterpFrom.X, nextT.ExtrapolationOffset.X, interpFactor)
-				pos.Y = interp.Linear.Float64(nextT.InterpFrom.Y, nextT.ExtrapolationOffset.Y, interpFactor)
+				// Lerp the InterpTo point to the extrapolated point
+				// iFactor := 0.1
+				// netPos.InterpTo.X = interp.Linear.Float64(netPos.InterpTo.X, netPos.ExtrapolatedPos.X, iFactor)
+				// netPos.InterpTo.Y = interp.Linear.Float64(netPos.InterpTo.Y, netPos.ExtrapolatedPos.Y, iFactor)
+				netPos.InterpTo = netPos.ExtrapolatedPos
 
-				// log.Print("Trans: ", interpFactor, phyT.Sub(&playerPhyT), phyT.Sub(&old))
-
-
-				iFactor := 0.2
-				nextT.ExtrapolationOffset.X = interp.Linear.Float64(nextT.ExtrapolationOffset.X, nextT.Extrapolation.X, iFactor)
-				nextT.ExtrapolationOffset.Y = interp.Linear.Float64(nextT.ExtrapolationOffset.Y, nextT.Extrapolation.Y, iFactor)
+				// Lerp the entity
+				pos.X = interp.Linear.Float64(netPos.InterpFrom.X, netPos.InterpTo.X, interpFactor)
+				pos.Y = interp.Linear.Float64(netPos.InterpFrom.Y, netPos.InterpTo.Y, interpFactor)
 			})
 
 			minAnim := 2.0
-			ecs.Map4(world, func(id ecs.Id, input *mmo.Input, anim *Animation, pos *phy2.Pos, nextT *NextTransform) {
+			ecs.Map4(world, func(id ecs.Id, input *mmo.Input, anim *Animation, pos *phy2.Pos, netPos *NetPos) {
 				if input.Left && !input.Right {
 					anim.Direction = "left"
 					anim.SetAnimation("run_left")
@@ -374,13 +371,11 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				} else if input.Up || input.Down {
 					anim.SetAnimation("run_" + anim.Direction)
 				} else {
-					// if phyT.DistanceTo(&nextT.PhyTrans) > minAnim {
+					// if phyT.DistanceTo(&netPos.PhyTrans) > minAnim {
 					// 	return // Don't set idle because we are still interpolating to our destination
 					// }
-					// next := nextT.First()
-					next, ok := nextT.PeekLast()
-					if !ok { return } // TODO - notsure what to do here
-					if pos.Sub(next.Pos).Len() > minAnim {
+					// next := netPos.First()
+					if pos.Sub(netPos.InterpTo).Len() > minAnim {
 						return // Don't set idle because we are still interpolating to our destination
 					}
 
@@ -450,7 +445,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			// Debug. Draw neworking position buffer
 			if debugMode {
 				pass.SetLayer(0)
-				ecs.Map2(world, func(id ecs.Id, pos *phy2.Pos, nt *NextTransform) {
+				ecs.Map2(world, func(id ecs.Id, pos *phy2.Pos, netPos *NetPos) {
 
 					// npos := nt.PhyTrans
 					// npos := nt.Last()
@@ -458,28 +453,28 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(npos.X), float32(npos.Y + npos.Height), 0)
 					// debugSprite.Draw(pass, mat)
 
-					// Interp Replay buffer
-					nt.Map(func(t ServerTransform) {
-						mat := glitch.Mat4Ident
-						mat.Scale(0.5, 0.5, 1.0).Translate(float32(t.X), float32(t.Y), 0)
-						debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 1, 0, 0.5})
-					})
+					// // Interp Replay buffer
+					// nt.Map(func(t ServerTransform) {
+					// 	mat := glitch.Mat4Ident
+					// 	mat.Scale(0.5, 0.5, 1.0).Translate(float32(t.X), float32(t.Y), 0)
+					// 	debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 1, 0, 0.5})
+					// })
 
 					mat := glitch.Mat4Ident
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.ExtrapolationOffset.X), float32(nt.ExtrapolationOffset.Y), 0)
-					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 0, 0, 1})
+					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(netPos.ExtrapolationOffset.X), float32(netPos.ExtrapolationOffset.Y), 0)
+					// debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 0, 0, 1})
+
+					// mat = glitch.Mat4Ident
+					// // mat.Scale(0.5, 0.5, 1.0).Translate(float32(netPos.InterpFrom.X + netPos.Extrapolation.X), float32(netPos.InterpFrom.Y + netPos.Extrapolation.Y + netPos.Extrapolation.Height), 0)
+					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(netPos.Extrapolation.X), float32(netPos.Extrapolation.Y), 0)
+					// debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 1, 1, 1})
 
 					mat = glitch.Mat4Ident
-					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpFrom.X + nt.Extrapolation.X), float32(nt.InterpFrom.Y + nt.Extrapolation.Y + nt.Extrapolation.Height), 0)
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.Extrapolation.X), float32(nt.Extrapolation.Y), 0)
-					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 1, 1, 1})
-
-					mat = glitch.Mat4Ident
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpFrom.X), float32(nt.InterpFrom.Y), 0)
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(netPos.InterpFrom.X), float32(netPos.InterpFrom.Y), 0)
 					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 0, 0, 1})
 
 					mat = glitch.Mat4Ident
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpTo.X), float32(nt.InterpTo.Y), 0)
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(netPos.InterpTo.X), float32(netPos.InterpTo.Y), 0)
 					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 1, 0, 1})
 				})
 
@@ -491,9 +486,9 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				// })
 
 				inputBuffer := playerData.GetInputBuffer()
-				tBuffer, _ := ecs.Read[NextTransform](world, playerData.Id())
+				netPos, _ := ecs.Read[NetPos](world, playerData.Id())
 				collider, _ := ecs.Read[phy2.CircleCollider](world, playerData.Id())
-				extPos := tBuffer.PreExtInterpTo.Pos
+				extPos := netPos.PreExtInterpTo
 				for i := range inputBuffer {
 					// for ii := 0; ii < 4; ii++ { // TODO - 4 because we do %4 on send rate
 						mmo.MoveCharacter(&inputBuffer[i].Input, &extPos, &collider, tilemap, mmo.FixedTimeStep)
