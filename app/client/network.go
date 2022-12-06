@@ -7,7 +7,6 @@ import (
 	"github.com/zyedidia/generic/queue"
 	"github.com/unitoftime/ecs"
 
-	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/mmo/serdes"
 )
 
@@ -35,7 +34,7 @@ func ClientPollNetworkSystem(networkChannel chan serdes.WorldUpdate,
 	return sys
 }
 
-func ClientPullFromUpdateQueue(world *ecs.World, updateQueue *queue.Queue[serdes.WorldUpdate], playerData *mmo.PlayerData) ecs.System {
+func ClientPullFromUpdateQueue(world *ecs.World, updateQueue *queue.Queue[serdes.WorldUpdate], playerData *PlayerData) ecs.System {
 	// TODO! - dynamic based on connection
 	targetQueueSize := 3
 

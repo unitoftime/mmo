@@ -30,7 +30,6 @@ import (
 	"github.com/unitoftime/flow/net"
 
 	"github.com/unitoftime/mmo"
-	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/mmo/serdes"
 )
 
@@ -171,7 +170,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	networkChannel := make(chan serdes.WorldUpdate, 1024) // TODO - arbitrary 1024
 
 	// This is the player's ID, by default we set this to invalid
-	playerData := mmo.NewPlayerData()
+	playerData := NewPlayerData()
 
 	// TODO - Do this for local testing (Right now I'm doing insecure skip verify)
 	// Ref: https://github.com/jcbsmpsn/golang-https-example
@@ -264,7 +263,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			})
 		}},
 		ecs.System{"BodySetup", func(dt time.Duration) {
-			ecs.Map(world, func(id ecs.Id, body *game.Body) {
+			ecs.Map(world, func(id ecs.Id, body *mmo.Body) {
 				// TODO - is there a way to not have to poll these each frame?
 				// Body to animation
 				_, ok := ecs.Read[Animation](world, id)
@@ -290,7 +289,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			})
 
 			// Tile objects?
-			ecs.Map(world, func(id ecs.Id, body *game.TileObject) {
+			ecs.Map(world, func(id ecs.Id, body *mmo.TileObject) {
 				_, ok := ecs.Read[render.Sprite](world, id)
 				if !ok {
 					ecs.Write(world, id,
@@ -513,11 +512,11 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				// TODO - move to physics system
 				{
 					commandList := make([]func(), 0)
-					ecs.Map(world, func(id ecs.Id, speech *game.Speech) {
+					ecs.Map(world, func(id ecs.Id, speech *mmo.Speech) {
 						if speech.HandleRender() {
 							commandList = append(commandList,
 								func() {
-									// TODO - combine SpeechRender component with otherone in game.SetSpeech()
+									// TODO - combine SpeechRender component with otherone in mmo.SetSpeech()
 									ecs.Write(world, id, ecs.C(SpeechRender{
 										Text: atlas.Text(speech.Text),
 										RemainingDuration: 5 * time.Second,

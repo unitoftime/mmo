@@ -18,7 +18,7 @@ import (
 	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/mmo/serdes"
 	"github.com/unitoftime/mmo/stat"
-	"github.com/unitoftime/mmo/game"
+	// "github.com/unitoftime/mmo/game"
 )
 
 // --------------------------------------------------------------------------------
@@ -59,15 +59,15 @@ var lastTime4 time.Time
 var AvgWorldUpdateTime time.Duration
 
 var lastWorldUpdate time.Time
-var worldUpdateTimes *mmo.RingBuffer
-func init() {
-	lastWorldUpdate = time.Now()
-	bufLen := 100
-	worldUpdateTimes = mmo.NewRingBuffer(bufLen)
-	for i := 0; i < bufLen; i++ {
-		worldUpdateTimes.Add(4 * mmo.FixedTimeStep) // TODO! - hardcoded
-	}
-}
+// var worldUpdateTimes *mmo.RingBuffer
+// func init() {
+// 	lastWorldUpdate = time.Now()
+// 	bufLen := 100
+// 	worldUpdateTimes = mmo.NewRingBuffer(bufLen)
+// 	for i := 0; i < bufLen; i++ {
+// 		worldUpdateTimes.Add(4 * mmo.FixedTimeStep) // TODO! - hardcoded
+// 	}
+// }
 
 // This calculates the update to send to all players, finds the proxy associated with them, and sends that update over the wire
 func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) {
@@ -103,7 +103,7 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 	// TODO - When you do SOI code, and generate messages on a per player basis. You should also not include the speech bubble that the player just sent.
 	// Add relevant data to the world update
 	{
-		ecs.Map4(world, func(id ecs.Id, pos *phy2.Pos, body *game.Body, speech *game.Speech, input *mmo.Input) {
+		ecs.Map4(world, func(id ecs.Id, pos *phy2.Pos, body *mmo.Body, speech *mmo.Speech, input *mmo.Input) {
 			compList := []ecs.Component{
 				ecs.C(*pos),
 				ecs.C(*body),
@@ -196,7 +196,7 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 			compSlice = append(compSlice, ecs.C(input))
 
 			if len(componentList) > 1 {
-				speechBox, ok := componentList[1].(ecs.CompBox[game.Speech])
+				speechBox, ok := componentList[1].(ecs.CompBox[mmo.Speech])
 				if !ok { continue }
 				speech := speechBox.Get()
 				compSlice = append(compSlice, ecs.C(speech))
@@ -235,8 +235,8 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 							ProxyId: serverConn.proxyId,
 						}),
 						ecs.C(mmo.Input{}),
-						ecs.C(game.Body{uint32(rand.Intn(game.NumBodyTypes))}),
-						ecs.C(game.Speech{}),
+						ecs.C(mmo.Body{uint32(rand.Intn(mmo.NumBodyTypes))}),
+						ecs.C(mmo.Speech{}),
 						ecs.C(mmo.SpawnPoint()),
 						ecs.C(collider),
 						ecs.C(phy2.NewColliderCache()),

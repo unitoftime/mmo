@@ -4,48 +4,19 @@ import (
 	// "fmt"
 	"time"
 	"math"
-	"sync"
+	"regexp"
 
-	// "github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/log"
 
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/tile"
 	"github.com/unitoftime/flow/phy2"
 	"github.com/unitoftime/flow/pgen"
-	"github.com/unitoftime/mmo/game"
 )
 
 type Input struct {
 	Up, Down, Left, Right bool
 }
-
-// TODO - make this guy generic
-type RingBuffer struct {
-	idx int
-	buffer []time.Duration
-}
-func NewRingBuffer(length int) *RingBuffer {
-	return &RingBuffer{
-		idx: 0,
-		buffer: make([]time.Duration, length),
-	}
-}
-
-func (b *RingBuffer) Add(t time.Duration) {
-	b.buffer[b.idx] = t
-	b.idx = (b.idx + 1) % len(b.buffer)
-}
-
-// TODO - Maybe convert this to an iterator
-func (b *RingBuffer) Buffer() []time.Duration {
-	ret := make([]time.Duration, len(b.buffer))
-	firstSliceLen := len(b.buffer) - b.idx
-	copy(ret[:firstSliceLen], b.buffer[b.idx:len(b.buffer)])
-	copy(ret[firstSliceLen:], b.buffer[0:b.idx])
-	return ret
-}
-
-// ---
 
 var seed int64 = 12345
 var mapSize int = 100
@@ -56,119 +27,6 @@ const (
 	BodyLayer phy2.CollisionLayer = 1 << iota
 	WallLayer
 )
-
-type InputBufferItem struct {
-	Input Input
-	Time time.Time
-}
-
-// This represents global player data on the client
-type PlayerData struct {
-	mu sync.RWMutex
-	id ecs.Id
-	playerTick uint16
-	serverTick uint16
-	lastMessage string
-	inputBuffer []InputBufferItem
-	roundTripTimes *RingBuffer
-}
-
-func NewPlayerData() *PlayerData {
-	return &PlayerData{
-		id: ecs.InvalidEntity,
-		inputBuffer: make([]InputBufferItem, 0),
-		roundTripTimes: NewRingBuffer(100), // TODO - configurable
-	}
-}
-
-func (p *PlayerData) Id() ecs.Id {
-	p.mu.RLock()
-	ret := p.id
-	p.mu.RUnlock()
-	return ret
-}
-
-func (p *PlayerData) SetId(id ecs.Id) {
-	p.mu.Lock()
-	p.id = id
-	p.mu.Unlock()
-}
-
-// func (p *PlayerData) Tick() uint16 {
-// 	p.mu.RLock()
-// 	ret := p.tick
-// 	p.mu.RUnlock()
-// 	return ret
-// }
-
-func (p *PlayerData) SetTicks(serverTick, serverUpdatePlayerTick uint16) {
-	// fmt.Println("SetTicks: ", serverTick, serverUpdatePlayerTick, time.Now())
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	// Set the last server tick we've received
-	p.serverTick = serverTick
-
-	// Cut off every player input tick that the server hasn't processed
-	cut := int(p.playerTick - serverUpdatePlayerTick)
-	// fmt.Println("InputBuffer", p.serverTick, p.playerTick, serverUpdatePlayerTick, len(p.inputBuffer))
-	for i := 0; i < len(p.inputBuffer)-cut; i++ {
-		p.roundTripTimes.Add(time.Since(p.inputBuffer[i].Time))
-	}
-
-	if cut >= 0 && cut <= len(p.inputBuffer) {
-		// TODO - it'd be more efficient to use a queue
-		copy(p.inputBuffer, p.inputBuffer[len(p.inputBuffer)-cut:])
-		p.inputBuffer = p.inputBuffer[:cut]
-		// fmt.Println("Copied", n, len(p.inputBuffer))
-	} else {
-		// fmt.Println("OOB")
-	}
-}
-
-// Returns the player tick that this input is associated with
-func (p *PlayerData) AppendInputTick(input Input) uint16 {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.playerTick = (p.playerTick + 1) % math.MaxUint16
-	p.inputBuffer = append(p.inputBuffer, InputBufferItem{
-		Input: input,
-		Time: time.Now(),
-	})
-	return p.playerTick
-}
-
-func (p *PlayerData) GetInputBuffer() []InputBufferItem {
-	return p.inputBuffer
-}
-
-func (p *PlayerData) RoundTripTimes() []time.Duration {
-	return p.roundTripTimes.Buffer()
-}
-
-// Returns the message as sent to the server
-// TODO - if the player sends another message fast enough, it could blank out their first message
-// func (p *PlayerData) SendMessage(msg string) string {
-// 	msg = serdes.FilterChat(msg)
-// 	p.lastMessage = msg
-// 	return msg
-// }
-
-// // Returns the last message and clears the last message buffer, returns nil if no new message
-// func (p *PlayerData) GetLastMessage() *game.ChatMessage {
-// 	if p.lastMessage == "" {
-// 		return nil
-// 	}
-
-// 	msg := p.lastMessage
-// 	p.lastMessage = ""
-// 	return &game.ChatMessage{
-// 		// Username: nil, // TODO - return username?
-// 		Message: msg,
-// 	}
-// }
 
 func SpawnPoint() phy2.Pos {
 	spawnPoint := phy2.Pos{
@@ -250,10 +108,8 @@ func addWall(world *ecs.World, tilemap *tile.Tilemap, pos tile.TilePosition) {
 	collider.Layer = WallLayer
 	collider.HitLayer = BodyLayer
 
-	// log.Print(math.Round(float64(posX)), math.Round(float64(posY)))
-
 	ecs.Write(world, id,
-		ecs.C(game.TileObject{}),
+		ecs.C(TileObject{}),
 		ecs.C(tile.Collider{1,1}),
 		ecs.C(phy2.Pos{
 			X: math.Round(float64(posX)),
@@ -321,16 +177,6 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tile.Tilemap {
 	return tmap
 }
 
-// Note: This didn't work because client has to handle input differently than server (ie client does clientside prediction and interp)
-// func CreatePhysicsSystems(world *ecs.World) []ecs.System {
-// 	physicsSystems := []ecs.System{
-// 		ecs.System{"HandleInput", func(dt time.Duration) {
-// 			phy2.HandleInput(world, dt)
-// 		}},
-// 	}
-// 	return physicsSystems
-// }
-
 func MoveCharacter(input *Input, transform *phy2.Pos, collider *phy2.CircleCollider, tilemap *tile.Tilemap, dt time.Duration) {
 	// Note: 100 good starting point, 200 seemed like a good max
 	speed := 125 * dt.Seconds()
@@ -355,40 +201,6 @@ func MoveCharacter(input *Input, transform *phy2.Pos, collider *phy2.CircleColli
 	if input.Down {
 		transform.Y -= speed
 	}
-
-	// oldTransform := *transform
-
-	// move := phy2.V2(0,0)
-	// if input.Left {
-	// 	move.X = -1
-	// 	// transform.X -= speed
-	// }
-	// if input.Right {
-	// 	move.X = 1
-	// 	// transform.X += speed
-	// }
-	// if input.Up {
-	// 	move.Y = 1
-	// 	// transform.Y += speed
-	// }
-	// if input.Down {
-	// 	move.Y = -1
-	// 	// transform.Y -= speed
-	// }
-
-	// move = move.Norm().Scaled(speed)
-	// transform.X += move.X
-	// transform.Y += move.Y
-
-	// newTile, ok := tilemap.Get(tilemap.PositionToTile(float32(transform.X), float32(transform.Y)))
-	// if !ok {
-	// 	// If !ok then we've gone off the tilemap, just snap back to where we came from
-	// 	*transform = oldTransform
-	// }
-	// if newTile.Entity != ecs.InvalidEntity {
-	// 	*transform = oldTransform
-	// }
-
 
 	tilePos := tilemap.GetOverlappingTiles(transform.X, transform.Y, collider)
 	for i := range tilePos {
@@ -474,6 +286,53 @@ func GetScheduler() *ecs.Scheduler {
 	schedule := ecs.NewScheduler()
 	schedule.SetFixedTimeStep(FixedTimeStep)
 	return schedule
+}
+
+type TileObject struct {
+}
+
+const NumBodyTypes = 4
+type Body struct {
+	Type uint32
+}
+
+type Speech struct {
+	Text string
+	handledSent, handledRender bool
+}
+
+// handles the speech, returns true if the speech wasn't already handled
+func (s *Speech) HandleSent() bool {
+	if s.handledSent {
+		return false
+	}
+
+	s.handledSent = true
+	return true
+}
+
+func (s *Speech) HandleRender() bool {
+	if s.handledRender {
+		return false
+	}
+
+	s.handledRender = true
+	return true
+}
+
+
+// This should probably be somewhere else
+func FilterChat(msg string) string {
+	match, err := regexp.MatchString(`^[\w!@#$%^&*()[{\]}'";:<>,.\/\?~\-_,.+=\\ ]+$`, msg)
+	if err != nil {
+		log.Error().Err(err).Msg("Regex Matching error")
+		return "[This message was delete by moderator.]"
+	}
+	if match {
+		return msg
+	} else {
+		return "[This message was delete by moderator.]"
+	}
 }
 
 

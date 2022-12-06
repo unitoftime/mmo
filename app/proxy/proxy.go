@@ -15,9 +15,9 @@ import (
 
 	"github.com/unitoftime/flow/net"
 
+	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/mmo/stat"
 	"github.com/unitoftime/mmo/serdes"
-	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/ecs"
 )
 
@@ -233,11 +233,11 @@ func ServeNetConn(sock *net.Socket, serverConn *net.Socket, room *Room) {
 					for i, c := range compSlice {
 
 						switch t := c.(type) {
-						case ecs.CompBox[game.Speech]:
-							filteredText := game.FilterChat(t.Get().Text)
+						case ecs.CompBox[mmo.Speech]:
+							filteredText := mmo.FilterChat(t.Get().Text)
 							log.Print("Chat Speech: ", t.Get().Text)
 							log.Print("Chat Filter: ", filteredText)
-							compSlice[i] = ecs.C(game.Speech{
+							compSlice[i] = ecs.C(mmo.Speech{
 								Text: filteredText,
 							})
 						}

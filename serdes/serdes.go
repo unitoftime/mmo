@@ -6,7 +6,6 @@ import (
 	"github.com/unitoftime/flow/net"
 
 	"github.com/unitoftime/flow/phy2"
-	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/mmo"
 )
 
@@ -28,7 +27,7 @@ import (
 var componentUnion *net.UnionBuilder
 func init() {
 	// componentUnion = NewUnion(phy2.Transform{}, phy2.Input{}, game.Body{}, game.Speech{})
-	componentUnion = net.NewUnion(ecs.C(phy2.Pos{}), ecs.C(mmo.Input{}), ecs.C(game.Body{}), ecs.C(game.Speech{}))
+	componentUnion = net.NewUnion(ecs.C(phy2.Pos{}), ecs.C(mmo.Input{}), ecs.C(mmo.Body{}), ecs.C(mmo.Speech{}))
 }
 
 // TODO - for delta encoding of things that have to be different like ecs.Ids, if you encode the number as 0 then that could indicate that "we needed more bytes to encode the delta"

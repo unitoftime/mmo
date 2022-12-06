@@ -4,12 +4,13 @@ import (
 	"time"
 	"github.com/unitoftime/glitch"
 	"github.com/unitoftime/ecs"
-	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/flow/render"
 	"github.com/unitoftime/flow/phy2"
 	"github.com/unitoftime/flow/asset"
 
 	"github.com/unitoftime/packer" // TODO - move packer to flow?
+
+	"github.com/unitoftime/mmo"
 )
 
 type SpeechRender struct {
@@ -18,10 +19,10 @@ type SpeechRender struct {
 }
 
 func SetSpeech(world *ecs.World, atlas *glitch.Atlas, id ecs.Id, message string) {
-	message = game.FilterChat(message)
+	message = mmo.FilterChat(message)
 
 	ecs.Write(world, id,
-		ecs.C(game.Speech{
+		ecs.C(mmo.Speech{
 			Text: message,
 			// handled: false,
 		}),
@@ -124,7 +125,7 @@ func loadAnim(animAssets *asset.Animation, mountFrames packer.MountFrames) map[s
 	return manFrames
 }
 
-func NewAnimation(load *asset.Load, spritesheet *asset.Spritesheet, body game.Body) Animation {
+func NewAnimation(load *asset.Load, spritesheet *asset.Spritesheet, body mmo.Body) Animation {
 	mountFrames, err := load.Mountpoints("assets/mountpoints.json")
 	if err != nil {
 		panic(err)

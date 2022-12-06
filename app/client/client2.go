@@ -10,6 +10,7 @@ import (
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/glitch"
 
+	"github.com/unitoftime/flow/ds"
 	"github.com/unitoftime/flow/phy2"
 	// "github.com/unitoftime/flow/render"
 	// "github.com/unitoftime/flow/interp"
@@ -17,7 +18,6 @@ import (
 	"github.com/unitoftime/flow/net"
 
 	"github.com/unitoftime/mmo"
-	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/mmo/serdes"
 )
 
@@ -207,7 +207,7 @@ func (n *NextTransform) Map(fn func(t ServerTransform)) {
 // 	buffer []phy2.Transform
 // }
 
-func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.PlayerData, tilemap *tile.Tilemap) []ecs.System {
+func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *PlayerData, tilemap *tile.Tilemap) []ecs.System {
 	clientSystems := []ecs.System{
 		ecs.System{"ClientSendUpdate", func(dt time.Duration) {
 			ClientSendUpdate(world, sock, playerData)
@@ -584,7 +584,7 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 
 var everyOther int
 
-func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.PlayerData) {
+func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *PlayerData) {
 	// everyOther = (everyOther + 1) % 4
 	// if everyOther != 0 {
 	// 	return // skip
@@ -607,10 +607,10 @@ func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.
 
 	// lastMsg := playerData.GetLastMessage()
 	// // log.Print(lastMsg)
-	// var messages []game.ChatMessage
+	// var messages []mmo.ChatMessage
 	// if lastMsg != nil {
-	// 	messages = []game.ChatMessage{
-	// 		game.ChatMessage{
+	// 	messages = []mmo.ChatMessage{
+	// 		mmo.ChatMessage{
 	// 			Username: "", // Note: Can't trust the username that the client sends
 	// 			Message: lastMsg.Message,
 	// 		},
@@ -618,7 +618,7 @@ func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.
 	// }
 
 	// If we can't find a speech, that's okay
-	speech, speechFound := ecs.Read[game.Speech](world, playerId)
+	speech, speechFound := ecs.Read[mmo.Speech](world, playerId)
 	if speechFound {
 		if speech.HandleSent() {
 			compSlice = append(compSlice, ecs.C(speech))
@@ -663,10 +663,10 @@ func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.
 }
 
 var AvgWorldUpdateTime time.Duration
-func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel chan serdes.WorldUpdate) error {
+func ClientReceive(sock *net.Socket, playerData *PlayerData, networkChannel chan serdes.WorldUpdate) error {
 	// lastWorldUpdate := time.Now()
 	bufLen := 100
-	worldUpdateTimes := mmo.NewRingBuffer(bufLen)
+	worldUpdateTimes := ds.NewRingBuffer[time.Duration](bufLen)
 	for i := 0; i < bufLen; i++ {
 		worldUpdateTimes.Add(4 * mmo.FixedTimeStep) // TODO! - hardcoded
 	}
@@ -707,13 +707,13 @@ func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel 
 			compSlice, ok := t.WorldData[playerData.Id()]
 			if ok {
 				newCompSlice := make([]ecs.Component, 0)
-				// Pull out game.Speech for playerId
+				// Pull out mmo.Speech for playerId
 				for _, c := range compSlice {
 					switch t := c.(type) {
-					case ecs.CompBox[game.Speech]:
+					case ecs.CompBox[mmo.Speech]:
 						msg := t.Get().Text
 						log.Print("Client received a message for himself! ", msg)
-						speech := game.Speech{
+						speech := mmo.Speech{
 							Text: msg,
 						}
 						speech.HandleSent()
@@ -761,12 +761,12 @@ func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel 
 		case serdes.ClientLoginResp:
 			log.Print("serdes.ClientLoginResp", t)
 			// TODO this might be needed in the future if I want to write any data on login resp
-			// ecs.Write(world, ecs.Id(t.Id), ecs.C(game.Body{}))
+			// ecs.Write(world, ecs.Id(t.Id), ecs.C(mmo.Body{}))
 			// networkChannel <- serdes.WorldUpdate{
 			// 	UserId: t.UserId,
 			// 	WorldData: map[ecs.Id][]ecs.Component{
 			// 		ecs.Id(t.Id): []ecs.Component{
-			// 			ecs.C(game.Body{}),
+			// 			ecs.C(mmo.Body{}),
 			// 		},
 			// 	},
 			// }
