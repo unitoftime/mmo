@@ -13,7 +13,7 @@ import (
 	"github.com/unitoftime/flow/net"
 
 	"github.com/unitoftime/ecs"
-	"github.com/unitoftime/flow/physics"
+	"github.com/unitoftime/flow/phy2"
 
 	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/mmo/serdes"
@@ -103,9 +103,9 @@ func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) 
 	// TODO - When you do SOI code, and generate messages on a per player basis. You should also not include the speech bubble that the player just sent.
 	// Add relevant data to the world update
 	{
-		ecs.Map4(world, func(id ecs.Id, transform *physics.Transform, body *game.Body, speech *game.Speech, input *physics.Input) {
+		ecs.Map4(world, func(id ecs.Id, pos *phy2.Pos, body *game.Body, speech *game.Speech, input *mmo.Input) {
 			compList := []ecs.Component{
-				ecs.C(*transform),
+				ecs.C(*pos),
 				ecs.C(*body),
 				ecs.C(*input),
 			}
@@ -190,7 +190,7 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 
 			compSlice := make([]ecs.Component, 0)
 			// TODO - these should be in a loop. can't guarantee each component slot
-			inputBox, ok := componentList[0].(ecs.CompBox[physics.Input])
+			inputBox, ok := componentList[0].(ecs.CompBox[mmo.Input])
 			if !ok { continue }
 			input := inputBox.Get()
 			compSlice = append(compSlice, ecs.C(input))
@@ -224,7 +224,7 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 			id := world.NewId()
 
 			// TODO - hardcoded here and in client.go - Centralize character creation
-			collider := physics.NewCircleCollider(6)
+			collider := phy2.NewCircleCollider(6)
 			collider.Layer = mmo.BodyLayer
 			collider.HitLayer = mmo.BodyLayer
 			trustedLogin := serdes.WorldUpdate{
@@ -234,12 +234,12 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 							Id: t.UserId,
 							ProxyId: serverConn.proxyId,
 						}),
-						ecs.C(physics.Input{}),
+						ecs.C(mmo.Input{}),
 						ecs.C(game.Body{uint32(rand.Intn(game.NumBodyTypes))}),
 						ecs.C(game.Speech{}),
 						ecs.C(mmo.SpawnPoint()),
 						ecs.C(collider),
-						ecs.C(physics.NewColliderCache()),
+						ecs.C(phy2.NewColliderCache()),
 					},
 				},
 			}
@@ -410,3 +410,47 @@ func (s *Server) RemoveProxy(proxyId uint64) {
 	defer s.connectionsMut.Unlock()
 	delete(s.connections, proxyId)
 }
+
+
+//--------------------------------------------------------------------------------
+// - Handle Capturing data from network
+//--------------------------------------------------------------------------------
+
+// type LastUpdate struct {
+// 	Time time.Time
+// }
+
+// type EcsUpdate struct {
+// 	WorldData map[ecs.Id][]ecs.Component
+// 	Delete []ecs.Id
+// }
+
+// TODO - this kindof represents a greater pattern of trying to apply commands to the world in a threadsafe manner. Maybe integrate this into the ECS library: https://docs.rs/bevy/0.4.0/bevy/ecs/trait.Command.html
+func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldUpdate) ecs.System {
+	sys := ecs.System{"PollNetworkChannel", func(dt time.Duration) {
+
+	MainLoop:
+		for {
+			select {
+			case update := <-networkChannel:
+				for id, compList := range update.WorldData {
+					// compList = append(compList, ecs.C(LastUpdate{time.Now()}))
+					ecs.Write(world, id, compList...)
+				}
+
+				// Delete all the entities in the deleteList
+				if update.Delete != nil {
+					for _, id := range update.Delete {
+						ecs.Delete(world, id)
+					}
+				}
+
+			default:
+				break MainLoop
+			}
+		}
+	}}
+
+	return sys
+}
+

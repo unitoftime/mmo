@@ -5,8 +5,9 @@ import (
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/net"
 
-	"github.com/unitoftime/flow/physics"
+	"github.com/unitoftime/flow/phy2"
 	"github.com/unitoftime/mmo/game"
+	"github.com/unitoftime/mmo"
 )
 
 // type MessageRouter struct {
@@ -26,8 +27,8 @@ import (
 // TODO! - should I just have one big union object that everything is in? That'll greatly simplify a recursive serializer. Kindoflike gob where if you hit an interface you just try to unionize it. Then when you pull it out you do the opposite...
 var componentUnion *net.UnionBuilder
 func init() {
-	// componentUnion = NewUnion(physics.Transform{}, physics.Input{}, game.Body{}, game.Speech{})
-	componentUnion = net.NewUnion(ecs.C(physics.Transform{}), ecs.C(physics.Input{}), ecs.C(game.Body{}), ecs.C(game.Speech{}))
+	// componentUnion = NewUnion(phy2.Transform{}, phy2.Input{}, game.Body{}, game.Speech{})
+	componentUnion = net.NewUnion(ecs.C(phy2.Pos{}), ecs.C(mmo.Input{}), ecs.C(game.Body{}), ecs.C(game.Speech{}))
 }
 
 // TODO - for delta encoding of things that have to be different like ecs.Ids, if you encode the number as 0 then that could indicate that "we needed more bytes to encode the delta"

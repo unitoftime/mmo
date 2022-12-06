@@ -11,6 +11,10 @@ import (
 	"github.com/unitoftime/mmo/serdes"
 )
 
+type LastUpdate struct {
+	Time time.Time
+}
+
 func ClientPollNetworkSystem(networkChannel chan serdes.WorldUpdate,
 	updateQueue *queue.Queue[serdes.WorldUpdate]) ecs.System {
 
@@ -72,7 +76,7 @@ func ClientPullFromUpdateQueue(world *ecs.World, updateQueue *queue.Queue[serdes
 		playerData.SetTicks(update.Tick, update.PlayerTick)
 
 		for id, compList := range update.WorldData {
-			compList = append(compList, ecs.C(mmo.LastUpdate{time.Now()}))
+			compList = append(compList, ecs.C(LastUpdate{time.Now()}))
 			ecs.Write(world, id, compList...)
 		}
 

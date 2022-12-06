@@ -10,11 +10,14 @@ import (
 
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/tile"
-	"github.com/unitoftime/flow/physics"
+	"github.com/unitoftime/flow/phy2"
 	"github.com/unitoftime/flow/pgen"
 	"github.com/unitoftime/mmo/game"
-	"github.com/unitoftime/mmo/serdes"
 )
+
+type Input struct {
+	Up, Down, Left, Right bool
+}
 
 // TODO - make this guy generic
 type RingBuffer struct {
@@ -49,13 +52,13 @@ var mapSize int = 100
 var tileSize int = 16
 
 const (
-	NoLayer physics.CollisionLayer = 0
-	BodyLayer physics.CollisionLayer = 1 << iota
+	NoLayer phy2.CollisionLayer = 0
+	BodyLayer phy2.CollisionLayer = 1 << iota
 	WallLayer
 )
 
 type InputBufferItem struct {
-	Input physics.Input
+	Input Input
 	Time time.Time
 }
 
@@ -125,7 +128,7 @@ func (p *PlayerData) SetTicks(serverTick, serverUpdatePlayerTick uint16) {
 }
 
 // Returns the player tick that this input is associated with
-func (p *PlayerData) AppendInputTick(input physics.Input) uint16 {
+func (p *PlayerData) AppendInputTick(input Input) uint16 {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -167,11 +170,10 @@ func (p *PlayerData) RoundTripTimes() []time.Duration {
 // 	}
 // }
 
-func SpawnPoint() physics.Transform {
-	spawnPoint := physics.Transform{
+func SpawnPoint() phy2.Pos {
+	spawnPoint := phy2.Pos{
 		X: float64(tileSize*mapSize/2),
 		Y: float64(tileSize*mapSize/2),
-		Height: 0,
 	}
 	return spawnPoint
 }
@@ -244,7 +246,7 @@ func addWall(world *ecs.World, tilemap *tile.Tilemap, pos tile.TilePosition) {
 	id := world.NewId()
 
 	// TODO - make square collider
-	collider := physics.NewCircleCollider(8)
+	collider := phy2.NewCircleCollider(8)
 	collider.Layer = WallLayer
 	collider.HitLayer = BodyLayer
 
@@ -253,12 +255,12 @@ func addWall(world *ecs.World, tilemap *tile.Tilemap, pos tile.TilePosition) {
 	ecs.Write(world, id,
 		ecs.C(game.TileObject{}),
 		ecs.C(tile.Collider{1,1}),
-		ecs.C(physics.Transform{
+		ecs.C(phy2.Pos{
 			X: math.Round(float64(posX)),
 			Y: math.Round(float64(posY)),
 		}),
 		ecs.C(collider),
-		ecs.C(physics.NewColliderCache()),
+		ecs.C(phy2.NewColliderCache()),
 	)
 }
 
@@ -323,13 +325,13 @@ func CreateTilemap(seed int64, mapSize, tileSize int) *tile.Tilemap {
 // func CreatePhysicsSystems(world *ecs.World) []ecs.System {
 // 	physicsSystems := []ecs.System{
 // 		ecs.System{"HandleInput", func(dt time.Duration) {
-// 			physics.HandleInput(world, dt)
+// 			phy2.HandleInput(world, dt)
 // 		}},
 // 	}
 // 	return physicsSystems
 // }
 
-func MoveCharacter(input *physics.Input, transform *physics.Transform, collider *physics.CircleCollider, tilemap *tile.Tilemap, dt time.Duration) {
+func MoveCharacter(input *Input, transform *phy2.Pos, collider *phy2.CircleCollider, tilemap *tile.Tilemap, dt time.Duration) {
 	// Note: 100 good starting point, 200 seemed like a good max
 	speed := 125 * dt.Seconds()
 
@@ -356,7 +358,7 @@ func MoveCharacter(input *physics.Input, transform *physics.Transform, collider 
 
 	// oldTransform := *transform
 
-	// move := physics.V2(0,0)
+	// move := phy2.V2(0,0)
 	// if input.Left {
 	// 	move.X = -1
 	// 	// transform.X -= speed
@@ -426,8 +428,8 @@ func MoveCharacter(input *physics.Input, transform *physics.Transform, collider 
 			}
 
 			// Closest point
-			point := physics.V2(dx + float64(posX), dy + float64(posY))
-			center := physics.V2(transform.X, transform.Y)
+			point := phy2.V2(dx + float64(posX), dy + float64(posY))
+			center := phy2.V2(transform.X, transform.Y)
 
 			dv := point.Sub(center)
 			response := dv.Norm().Scaled(dv.Len() - collider.Radius)
@@ -445,9 +447,9 @@ func MoveCharacter(input *physics.Input, transform *physics.Transform, collider 
 
 func CheckCollisions(world *ecs.World) {
 	// Detect all collisions
-	ecs.Map2(world, func(idA ecs.Id, colA *physics.CircleCollider, cacheA *physics.ColliderCache) {
+	ecs.Map2(world, func(idA ecs.Id, colA *phy2.CircleCollider, cacheA *phy2.ColliderCache) {
 		cacheA.Clear()
-		ecs.Map2(world, func(idB ecs.Id, colB *physics.CircleCollider, cacheB *physics.ColliderCache) {
+		ecs.Map2(world, func(idB ecs.Id, colB *phy2.CircleCollider, cacheB *phy2.ColliderCache) {
 			if idA == idB { return } // Skip if collider is the same entity
 
 			if !colA.LayerMask(colB.Layer) { return } // Skip if layer mask doesn't match
@@ -460,9 +462,9 @@ func CheckCollisions(world *ecs.World) {
 	})
 
 	// // Resolve Collisions
-	// ecs.Map2(world, func(id ecs.Id, transform *physics.Transform, collider *physics.CircleCollider, cache *physics.ColliderCache) {
+	// ecs.Map2(world, func(id ecs.Id, transform *phy2.Transform, collider *phy2.CircleCollider, cache *phy2.ColliderCache) {
 	// 	for _, targetId := range cache.Current {
-	// 		targetCollider := ecs.Read[physics.CircleCollider](world, targetId)
+	// 		targetCollider := ecs.Read[phy2.CircleCollider](world, targetId)
 	// 	}
 	// })
 }
@@ -474,41 +476,4 @@ func GetScheduler() *ecs.Scheduler {
 	return schedule
 }
 
-type LastUpdate struct {
-	Time time.Time
-}
-
-// type EcsUpdate struct {
-// 	WorldData map[ecs.Id][]ecs.Component
-// 	Delete []ecs.Id
-// }
-
-// TODO - this kindof represents a greater pattern of trying to apply commands to the world in a threadsafe manner. Maybe integrate this into the ECS library: https://docs.rs/bevy/0.4.0/bevy/ecs/trait.Command.html
-func CreatePollNetworkSystem(world *ecs.World, networkChannel chan serdes.WorldUpdate) ecs.System {
-	sys := ecs.System{"PollNetworkChannel", func(dt time.Duration) {
-
-	MainLoop:
-		for {
-			select {
-			case update := <-networkChannel:
-				for id, compList := range update.WorldData {
-					compList = append(compList, ecs.C(LastUpdate{time.Now()}))
-					ecs.Write(world, id, compList...)
-				}
-
-				// Delete all the entities in the deleteList
-				if update.Delete != nil {
-					for _, id := range update.Delete {
-						ecs.Delete(world, id)
-					}
-				}
-
-			default:
-				break MainLoop
-			}
-		}
-	}}
-
-	return sys
-}
 

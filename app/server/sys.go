@@ -5,7 +5,7 @@ import (
 
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/flow/tile"
-	"github.com/unitoftime/flow/physics"
+	"github.com/unitoftime/flow/phy2"
 
 	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/mmo/serdes"
@@ -25,22 +25,22 @@ type ClientTick struct {
 
 func CreateServerSystems(world *ecs.World, server *Server, networkChannel chan serdes.WorldUpdate, deleteList *DeleteList, tilemap *tile.Tilemap) []ecs.System {
 	serverSystems := []ecs.System{
-		mmo.CreatePollNetworkSystem(world, networkChannel),
+		CreatePollNetworkSystem(world, networkChannel),
 	}
 
 	// serverSystems = append(serverSystems,
 	// 	CreatePhysicsSystems(world)...)
 	serverSystems = append(serverSystems,
 		ecs.System{"MoveCharacters", func(dt time.Duration) {
-			ecs.Map3(world, func(id ecs.Id, input *physics.Input, transform *physics.Transform, collider *physics.CircleCollider) {
-				mmo.MoveCharacter(input, transform, collider, tilemap, dt)
+			ecs.Map3(world, func(id ecs.Id, input *mmo.Input, pos *phy2.Pos, collider *phy2.CircleCollider) {
+				mmo.MoveCharacter(input, pos, collider, tilemap, dt)
 			})
 		}},
 		ecs.System{"CheckCollisions", func(dt time.Duration) {
 			// Set the collider position
-			ecs.Map2(world, func(id ecs.Id, transform *physics.Transform, col *physics.CircleCollider) {
-				col.CenterX = transform.X
-				col.CenterY = transform.Y
+			ecs.Map2(world, func(id ecs.Id, pos *phy2.Pos, col *phy2.CircleCollider) {
+				col.CenterX = pos.X
+				col.CenterY = pos.Y
 			})
 
 			mmo.CheckCollisions(world)

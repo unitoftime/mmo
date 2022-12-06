@@ -6,7 +6,7 @@ import (
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/mmo/game"
 	"github.com/unitoftime/flow/render"
-	"github.com/unitoftime/flow/physics"
+	"github.com/unitoftime/flow/phy2"
 	"github.com/unitoftime/flow/asset"
 
 	"github.com/unitoftime/packer" // TODO - move packer to flow?
@@ -47,7 +47,7 @@ func (a *Animation) SetAnimation(name string) {
 }
 
 func PlayAnimations(pass *glitch.RenderPass, world *ecs.World, dt time.Duration) {
-	ecs.Map2(world, func(id ecs.Id, anim *Animation, t *physics.Transform) {
+	ecs.Map2(world, func(id ecs.Id, anim *Animation, pos *phy2.Pos) {
 		if anim.batch == nil {
 			anim.batch = glitch.NewBatch()
 		}
@@ -57,9 +57,9 @@ func PlayAnimations(pass *glitch.RenderPass, world *ecs.World, dt time.Duration)
 
 		// TODO - minor optimization opportunity: Don't batch every frame, only the frames that change
 		anim.batch.Clear()
-		anim.Body.Draw(anim.batch, &physics.Transform{})
+		anim.Body.Draw(anim.batch, &phy2.Pos{})
 
-		hatPoint := physics.Transform{}
+		hatPoint := phy2.Pos{}
 
 		frame := anim.Body.GetFrame()
 		mountPoint := frame.Mount("hat")
@@ -74,7 +74,7 @@ func PlayAnimations(pass *glitch.RenderPass, world *ecs.World, dt time.Duration)
 		anim.Hat.Draw(anim.batch, &hatPoint)
 
 		mat := glitch.Mat4Ident
-		mat.Translate(float32(t.X), float32(t.Y + t.Height), 0)
+		mat.Translate(float32(pos.X), float32(pos.Y), 0)
 		anim.batch.Draw(pass, mat)
 	})
 }

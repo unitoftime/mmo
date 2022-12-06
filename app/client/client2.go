@@ -10,8 +10,8 @@ import (
 	"github.com/unitoftime/ecs"
 	"github.com/unitoftime/glitch"
 
-	"github.com/unitoftime/flow/physics"
-	"github.com/unitoftime/flow/render"
+	"github.com/unitoftime/flow/phy2"
+	// "github.com/unitoftime/flow/render"
 	// "github.com/unitoftime/flow/interp"
 	"github.com/unitoftime/flow/tile"
 	"github.com/unitoftime/flow/net"
@@ -23,14 +23,14 @@ import (
 
 // This is mostly for debug, but maybe its a good thing to track
 type ServerTransform struct {
-	physics.Transform
+	phy2.Pos
 	Handled bool
 	ServerTick uint16
 	PlayerTick uint16
 }
 
 type NextTransform struct {
-	// PhyTrans physics.Transform
+	// PhyTrans phy2.Transform
 	ReadIdx, WriteIdx int
 	Transforms []ServerTransform
 	Replayed bool
@@ -39,8 +39,8 @@ type NextTransform struct {
 	InterpFrom ServerTransform // The current position to interp from
 	Interp float64
 
-	Extrapolation physics.Transform // This is the extrapolated position for the currently interpolated tick
-	ExtrapolationOffset physics.Transform
+	Extrapolation phy2.Pos // This is the extrapolated position for the currently interpolated tick
+	ExtrapolationOffset phy2.Pos
 
 	Remaining, Total time.Duration
 	AvgTickTime time.Duration
@@ -119,14 +119,14 @@ func (n *NextTransform) Remove() (ServerTransform, bool) {
 	return val, true
 }
 
-// func (n *NextTransform) GetBack(i int) *physics.Transform {
+// func (n *NextTransform) GetBack(i int) *phy2.Transform {
 // 	l := len(n.Transforms)
 // 	idx := (n.ReadIdx + l - 1 - i) % l
 // 	return &n.Transforms[idx]
 // }
 
 // // Returns the last one added (the newest element)
-// func (n *NextTransform) Last() *physics.Transform {
+// func (n *NextTransform) Last() *phy2.Transform {
 // 	l := len(n.Transforms)
 // 	return &n.Transforms[(n.ReadIdx + l - 1) % l]
 // }
@@ -152,45 +152,45 @@ func (n *NextTransform) Map(fn func(t ServerTransform)) {
 }
 
 // type NextTransform struct {
-// 	// PhyTrans physics.Transform
+// 	// PhyTrans phy2.Transform
 // 	Idx int
-// 	Transforms []physics.Transform
+// 	Transforms []phy2.Transform
 // 	Replayed bool
-// 	InterpStart physics.Transform
+// 	InterpStart phy2.Transform
 // 	Interp float64
 // }
 // func NewTransformBuffer() NextTransform {
 // 	return NextTransform{
 // 		Idx: 0,
-// 		Transforms: make([]physics.Transform, 10),
+// 		Transforms: make([]phy2.Transform, 10),
 // 		Replayed: false,
 // 		Interp: 0,
 // 	}
 // }
 
-// func (n *NextTransform) Add(t physics.Transform) {
+// func (n *NextTransform) Add(t phy2.Transform) {
 // 	n.Transforms[n.Idx] = t
 // 	n.Idx = (n.Idx + 1) % len(n.Transforms)
 // }
 
 // // Returns the one after the last one added (the oldest element of the buffer, or the first element of the buffer)
-// func (n *NextTransform) First() *physics.Transform {
+// func (n *NextTransform) First() *phy2.Transform {
 // 	return &n.Transforms[n.Idx]
 // }
 
-// func (n *NextTransform) GetBack(i int) *physics.Transform {
+// func (n *NextTransform) GetBack(i int) *phy2.Transform {
 // 	l := len(n.Transforms)
 // 	idx := (n.Idx + l - 1 - i) % l
 // 	return &n.Transforms[idx]
 // }
 
 // // Returns the last one added (the newest element)
-// func (n *NextTransform) Last() *physics.Transform {
+// func (n *NextTransform) Last() *phy2.Transform {
 // 	l := len(n.Transforms)
 // 	return &n.Transforms[(n.Idx + l - 1) % l]
 // }
 
-// func (n *NextTransform) Map(fn func(t physics.Transform)) {
+// func (n *NextTransform) Map(fn func(t phy2.Transform)) {
 // 	l := len(n.Transforms)
 // 	firstIdx := n.Idx
 // 	lastIdx := (n.Idx + l - 1) % l
@@ -201,10 +201,10 @@ func (n *NextTransform) Map(fn func(t ServerTransform)) {
 // 	}
 // }
 
-// type LastTransform physics.Transform
+// type LastTransform phy2.Transform
 // TODO - do a full fledged transform buffer
 // type TransformBuffer struct {
-// 	buffer []physics.Transform
+// 	buffer []phy2.Transform
 // }
 
 func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.PlayerData, tilemap *tile.Tilemap) []ecs.System {
@@ -230,10 +230,10 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 		// 		serverTransform.Handled = true
 		// 		ecs.Write(world, playerId, ecs.C(serverTransform))
 
-		// 		curTransform, ok := ecs.Read[physics.Transform](world, playerId)
+		// 		curTransform, ok := ecs.Read[phy2.Transform](world, playerId)
 		// 		if !ok {
 		// 			// Create TransformBuffer if it doesn't exist
-		// 			curTransform = physics.Transform{}
+		// 			curTransform = phy2.Transform{}
 		// 			ecs.Write(world, playerId, ecs.C(curTransform))
 		// 		}
 
@@ -245,7 +245,7 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 
 		// 		// transform, ok := ecs.Read[NextTransform](world, playerId)
 		// 		// if !ok { return } // Skip if player doesn't have a transform
-		// 		collider, ok := ecs.Read[physics.CircleCollider](world, playerId)
+		// 		collider, ok := ecs.Read[phy2.CircleCollider](world, playerId)
 		// 		if !ok { return } // Skip if player doesn't have a collider
 
 		// 		predictedTransform := serverTransform
@@ -264,18 +264,18 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 			// TODO - hack. We needed a way to create the transform component for other players (because we did a change which makes us set NextTransform over the wire instead of transform. So those were never being set
 			// Logic: If has next transform, but doesn't have transform, then add transform
 			// ecs.Map(world, func(id ecs.Id, nextT *NextTransform) {
-			// 	_, ok := ecs.Read[physics.Transform](world, id)
+			// 	_, ok := ecs.Read[phy2.Transform](world, id)
 			// 	if !ok {
-			// 		ecs.Write(world, id, ecs.C(physics.Transform{}))
+			// 		ecs.Write(world, id, ecs.C(phy2.Transform{}))
 			// 	}
 			// })
 
 			playerId := playerData.Id()
 			ecs.Map(world, func(id ecs.Id, serverTransform *ServerTransform) {
-				phyT, ok := ecs.Read[physics.Transform](world, id)
+				pos, ok := ecs.Read[phy2.Pos](world, id)
 				if !ok {
-					phyT = physics.Transform{}
-					ecs.Write(world, id, ecs.C(phyT))
+					pos = phy2.Pos{}
+					ecs.Write(world, id, ecs.C(pos))
 				}
 
 				transformBuffer, ok := ecs.Read[NextTransform](world, id)
@@ -291,7 +291,7 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 					// transformBuffer.Add(*serverTransform)
 
 					transformBuffer.InterpFrom = transformBuffer.InterpTo
-					transformBuffer.InterpFrom.Transform = phyT
+					transformBuffer.InterpFrom.Pos = pos
 					transformBuffer.InterpTo = *serverTransform
 
 					transformBuffer.Total = 64 * time.Millisecond //TODO! - Hardcoding 4x fixed time step
@@ -301,12 +301,12 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 					transformBuffer.Remaining = transformBuffer.Total
 
 					// Extrapolate with trimmed player input buffer
-					extrapolatedPos := transformBuffer.InterpTo.Transform
+					extrapolatedPos := transformBuffer.InterpTo.Pos
 					if id == playerId {
 
 						inputBuffer := playerData.GetInputBuffer()
 						// log.Print("InputBufLen: ", len(inputBuffer))
-						collider, ok := ecs.Read[physics.CircleCollider](world, playerId)
+						collider, ok := ecs.Read[phy2.CircleCollider](world, playerId)
 						if !ok { return } // Skip if player doesn't have a collider
 
 						for i := range inputBuffer {
@@ -332,8 +332,8 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 			})
 
 			// NOTE: I moved this to render tick to smooth it out a bit more
-			// playerPhyT, _ := ecs.Read[physics.Transform](world, playerId)
-			// ecs.Map2(world, func(id ecs.Id, phyT *physics.Transform, nextT *NextTransform) {
+			// playerPhyT, _ := ecs.Read[phy2.Transform](world, playerId)
+			// ecs.Map2(world, func(id ecs.Id, phyT *phy2.Transform, nextT *NextTransform) {
 			// 	nextT.Remaining -= dt
 
 			// 	interpFactor := 1 - (nextT.Remaining.Seconds() / nextT.Total.Seconds())
@@ -354,11 +354,11 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 
 			
 			// // TODO - Note: Keybinds is only included so that clients don't simulate another client's input, I should isolate these another way
-			// ecs.Map4(world, func(id ecs.Id, input *physics.Input, keybinds *render.Keybinds, nextTrans *NextTransform, collider *physics.CircleCollider) {
+			// ecs.Map4(world, func(id ecs.Id, input *phy2.Input, keybinds *render.Keybinds, nextTrans *NextTransform, collider *phy2.CircleCollider) {
 			// 	// Extrapolate with trimmed player input buffer
 			// 	if id != playerId { return }
 
-			// 	phyT, ok := ecs.Read[physics.Transform](world, id)
+			// 	phyT, ok := ecs.Read[phy2.Transform](world, id)
 			// 	if !ok {
 			// 		panic("AAAA")
 			// 	}
@@ -396,9 +396,9 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 
 /*
 			ecs.Map(world, func(id ecs.Id, serverTransform *ServerTransform) {
-				_, ok := ecs.Read[physics.Transform](world, id)
+				_, ok := ecs.Read[phy2.Transform](world, id)
 				if !ok {
-					ecs.Write(world, id, ecs.C(physics.Transform{}))
+					ecs.Write(world, id, ecs.C(phy2.Transform{}))
 				}
 				transformBuffer, ok := ecs.Read[NextTransform](world, id)
 				if !ok {
@@ -421,7 +421,7 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 			const maxInterp float64 = 6 * 16.0
 			const minInterp float64 = 2.0
 			playerId := playerData.Id()
-			ecs.Map2(world, func(id ecs.Id, phyT *physics.Transform, nextT *NextTransform) {
+			ecs.Map2(world, func(id ecs.Id, phyT *phy2.Transform, nextT *NextTransform) {
 
 				nextT.Remaining -= dt
 				// log.Print("Remaining: ", nextT.Remaining)
@@ -434,13 +434,13 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 						// start := *phyT
 
 						// Replay interp
-						extrapolatedPos := physics.Transform{}
+						extrapolatedPos := phy2.Transform{}
 						if id == playerId {
 							playerData.SetTicks(nextT.InterpTo.ServerTick, nextT.InterpTo.PlayerTick)
 
 							inputBuffer := playerData.GetInputBuffer()
 							log.Print("InputBufLen: ", len(inputBuffer))
-							collider, ok := ecs.Read[physics.CircleCollider](world, playerId)
+							collider, ok := ecs.Read[phy2.CircleCollider](world, playerId)
 							if !ok { return } // Skip if player doesn't have a collider
 
 							for i := range inputBuffer {
@@ -496,8 +496,8 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 					}
 				}
 
-				// current := physics.V2(phyT.X, phyT.Y)
-				// next := physics.V2(nextT.InterpTo.X, nextT.InterpTo.Y)
+				// current := phy2.V2(phyT.X, phyT.Y)
+				// next := phy2.V2(nextT.InterpTo.X, nextT.InterpTo.Y)
 				// delta := next.Sub(current)
 
 				// Snap, rather than interpolate if the distance is large enough
@@ -555,7 +555,7 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 	physicsSystems := []ecs.System{
 		// ecs.System{"MoveCharacters", func(dt time.Duration) {
 		// 	// TODO - Note: Keybinds is only included so that clients don't simulate another client's input, I should isolate these another way
-		// 	ecs.Map4(world, func(id ecs.Id, input *physics.Input, keybinds *render.Keybinds, nextTrans *NextTransform, collider *physics.CircleCollider) {
+		// 	ecs.Map4(world, func(id ecs.Id, input *phy2.Input, keybinds *render.Keybinds, nextTrans *NextTransform, collider *phy2.CircleCollider) {
 
 		// 		next := nextTrans.First()
 		// 		mmo.MoveCharacter(input, next, collider, tilemap, dt)
@@ -565,7 +565,7 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *mmo.Pla
 		// }},
 		ecs.System{"SetupColliders", func(dt time.Duration) {
 			// Set the collider position
-			ecs.Map2(world, func(id ecs.Id, transform *NextTransform, col *physics.CircleCollider) {
+			ecs.Map2(world, func(id ecs.Id, transform *NextTransform, col *phy2.CircleCollider) {
 				next := transform.InterpTo
 				col.CenterX = next.X
 				col.CenterY = next.Y
@@ -596,7 +596,7 @@ func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.
 	connected := clientConn.Connected.Load()
 	if !connected { return } // Exit early because we are not connected
 
-	input, ok := ecs.Read[physics.Input](world, playerId)
+	input, ok := ecs.Read[mmo.Input](world, playerId)
 	if !ok { return } // If we can't find the players input just exit early
 
 	playerTick := playerData.AppendInputTick(input)
@@ -647,7 +647,7 @@ func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *mmo.
 		}
 	}
 
-	// ecs.Map2(world, func(id ecs.Id, _ *ClientOwned, input *physics.Input) {
+	// ecs.Map2(world, func(id ecs.Id, _ *ClientOwned, input *phy2.Input) {
 	// 	update := serdes.WorldUpdate{
 	// 		WorldData: map[ecs.Id][]ecs.Component{
 	// 			id: []ecs.Component{ecs.C(*input)},
@@ -720,7 +720,7 @@ func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel 
 						// TODO - speech.HandleRender() - Would I ever use this to have the server send messages to the client?
 						// compSlice[i] = ecs.C(speech)
 						newCompSlice = append(newCompSlice, ecs.C(speech))
-					case ecs.CompBox[physics.Input]:
+					case ecs.CompBox[mmo.Input]:
 						// If the server sent us back our own input, we just want to drop it, because we own that component
 						continue
 					default:
@@ -733,9 +733,9 @@ func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel 
 			for j, compSlice := range t.WorldData {
 				for i, c := range compSlice {
 					switch tt := c.(type) {
-					case ecs.CompBox[physics.Transform]:
+					case ecs.CompBox[phy2.Pos]:
 						serverTransform := ServerTransform{
-							Transform: tt.Get(),
+							Pos: tt.Get(),
 							Handled: false,
 							ServerTick: t.Tick,
 							PlayerTick: t.PlayerTick,
@@ -777,9 +777,9 @@ func ClientReceive(sock *net.Socket, playerData *mmo.PlayerData, networkChannel 
 				UserId: t.UserId,
 				WorldData: map[ecs.Id][]ecs.Component{
 					ecs.Id(t.Id): []ecs.Component{
-						ecs.C(physics.Input{}),
-						ecs.C(physics.Transform{}),
-						ecs.C(render.Keybinds{
+						ecs.C(mmo.Input{}),
+						ecs.C(phy2.Pos{}),
+						ecs.C(Keybinds{
 							Up: glitch.KeyW,
 							Down: glitch.KeyS,
 							Left: glitch.KeyA,

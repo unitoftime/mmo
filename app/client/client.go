@@ -25,7 +25,7 @@ import (
 	"github.com/unitoftime/flow/interp"
 	"github.com/unitoftime/flow/asset"
 	"github.com/unitoftime/flow/render"
-	"github.com/unitoftime/flow/physics"
+	"github.com/unitoftime/flow/phy2"
 	"github.com/unitoftime/flow/tile"
 	"github.com/unitoftime/flow/net"
 
@@ -257,7 +257,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		ecs.System{"ManageEntityTimeout", func(dt time.Duration) {
 			timeout := 5 * time.Second
 			now := time.Now()
-			ecs.Map(world, func(id ecs.Id, lastUpdate *mmo.LastUpdate) {
+			ecs.Map(world, func(id ecs.Id, lastUpdate *LastUpdate) {
 				if now.Sub(lastUpdate.Time) > timeout {
 					ecs.Delete(world, id)
 				}
@@ -275,16 +275,16 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				}
 
 				// Body to collider
-				_, ok = ecs.Read[physics.CircleCollider](world, id)
+				_, ok = ecs.Read[phy2.CircleCollider](world, id)
 				if !ok {
 					// TODO - hardcoded here and in network.go - Centralize character creation
 					// TODO - arbitrary collider radius 6
-					collider := physics.NewCircleCollider(6)
+					collider := phy2.NewCircleCollider(6)
 					collider.Layer = mmo.BodyLayer
 					collider.HitLayer = mmo.BodyLayer
 					ecs.Write(world, id,
 						ecs.C(collider),
-						ecs.C(physics.NewColliderCache()),
+						ecs.C(phy2.NewColliderCache()),
 					)
 				}
 			})
@@ -323,10 +323,10 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					quit.Set(true)
 				}
 
-				render.CaptureInput(win, world)
+				CaptureInput(win, world)
 			} else {
 				// Clear current inputs
-				ecs.Map2(world, func(id ecs.Id, keybinds *render.Keybinds, input *physics.Input) {
+				ecs.Map2(world, func(id ecs.Id, keybinds *Keybinds, input *mmo.Input) {
 					input.Left = false
 					input.Right = false
 					input.Up = false
@@ -340,9 +340,9 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 		}},
 		ecs.System{"SetAnimationFromState", func(dt time.Duration) {
 			// playerId := playerData.Id()
-			// playerPhyT, _ := ecs.Read[physics.Transform](world, playerId)
+			// playerPhyT, _ := ecs.Read[phy2.Transform](world, playerId)
 
-			ecs.Map2(world, func(id ecs.Id, phyT *physics.Transform, nextT *NextTransform) {
+			ecs.Map2(world, func(id ecs.Id, pos *phy2.Pos, nextT *NextTransform) {
 				nextT.Remaining -= dt
 
 				interpFactor := 1 - (nextT.Remaining.Seconds() / nextT.Total.Seconds())
@@ -353,8 +353,8 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				// old := *phyT
 				// phyT.X = interp.Linear.Float64(nextT.InterpFrom.X, nextT.InterpTo.X, interpFactor)
 				// phyT.Y = interp.Linear.Float64(nextT.InterpFrom.Y, nextT.InterpTo.Y, interpFactor)
-				phyT.X = interp.Linear.Float64(nextT.InterpFrom.X, nextT.ExtrapolationOffset.X, interpFactor)
-				phyT.Y = interp.Linear.Float64(nextT.InterpFrom.Y, nextT.ExtrapolationOffset.Y, interpFactor)
+				pos.X = interp.Linear.Float64(nextT.InterpFrom.X, nextT.ExtrapolationOffset.X, interpFactor)
+				pos.Y = interp.Linear.Float64(nextT.InterpFrom.Y, nextT.ExtrapolationOffset.Y, interpFactor)
 
 				// log.Print("Trans: ", interpFactor, phyT.Sub(&playerPhyT), phyT.Sub(&old))
 
@@ -365,7 +365,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			})
 
 			minAnim := 2.0
-			ecs.Map4(world, func(id ecs.Id, input *physics.Input, anim *Animation, phyT *physics.Transform, nextT *NextTransform) {
+			ecs.Map4(world, func(id ecs.Id, input *mmo.Input, anim *Animation, pos *phy2.Pos, nextT *NextTransform) {
 				if input.Left && !input.Right {
 					anim.Direction = "left"
 					anim.SetAnimation("run_left")
@@ -381,7 +381,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					// next := nextT.First()
 					next, ok := nextT.PeekLast()
 					if !ok { return } // TODO - notsure what to do here
-					if phyT.DistanceTo(&next.Transform) > minAnim {
+					if pos.Sub(next.Pos).Len() > minAnim {
 						return // Don't set idle because we are still interpolating to our destination
 					}
 
@@ -416,7 +416,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			}
 		}},
 		ecs.System{"UpdateCamera", func(dt time.Duration) {
-			transform, ok := ecs.Read[physics.Transform](world, playerData.Id())
+			transform, ok := ecs.Read[phy2.Pos](world, playerData.Id())
 			if ok {
 				// log.Print("Update Camera", transform)
 				// sprite := comp[1].(*render.Sprite)
@@ -424,7 +424,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				camera.Position = glitch.Vec2{float32(transform.X), float32(transform.Y)}
 			}
 
-			// ecs.Map2(world, func(id ecs.Id, _ *mmo.ClientOwned, transform *physics.Transform) {
+			// ecs.Map2(world, func(id ecs.Id, _ *mmo.ClientOwned, transform *phy2.Transform) {
 			// 	log.Println("Update Camera", transform)
 			// 	// sprite := comp[1].(*render.Sprite)
 			// 	// camera.Position = sprite.Position
@@ -441,14 +441,17 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			// tmapRender.Draw(win)
 
 			pass.Clear()
-			render.DrawSprites(pass, world)
+
+			ecs.Map2(world, func(id ecs.Id, sprite *render.Sprite, pos *phy2.Pos) {
+				sprite.Draw(pass, pos)
+			})
 
 			PlayAnimations(pass, world, dt)
 
 			// Debug. Draw neworking position buffer
 			if debugMode {
 				pass.SetLayer(0)
-				ecs.Map2(world, func(id ecs.Id, t *physics.Transform, nt *NextTransform) {
+				ecs.Map2(world, func(id ecs.Id, pos *phy2.Pos, nt *NextTransform) {
 
 					// npos := nt.PhyTrans
 					// npos := nt.Last()
@@ -459,25 +462,25 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					// Interp Replay buffer
 					nt.Map(func(t ServerTransform) {
 						mat := glitch.Mat4Ident
-						mat.Scale(0.5, 0.5, 1.0).Translate(float32(t.X), float32(t.Y + t.Height), 0)
+						mat.Scale(0.5, 0.5, 1.0).Translate(float32(t.X), float32(t.Y), 0)
 						debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 1, 0, 0.5})
 					})
 
 					mat := glitch.Mat4Ident
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.ExtrapolationOffset.X), float32(nt.ExtrapolationOffset.Y + nt.Extrapolation.Height), 0)
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.ExtrapolationOffset.X), float32(nt.ExtrapolationOffset.Y), 0)
 					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 0, 0, 1})
 
 					mat = glitch.Mat4Ident
 					// mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpFrom.X + nt.Extrapolation.X), float32(nt.InterpFrom.Y + nt.Extrapolation.Y + nt.Extrapolation.Height), 0)
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.Extrapolation.X), float32(nt.Extrapolation.Y + nt.Extrapolation.Height), 0)
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.Extrapolation.X), float32(nt.Extrapolation.Y), 0)
 					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 1, 1, 1})
 
 					mat = glitch.Mat4Ident
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpFrom.X), float32(nt.InterpFrom.Y + nt.InterpFrom.Height), 0)
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpFrom.X), float32(nt.InterpFrom.Y), 0)
 					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 0, 0, 1})
 
 					mat = glitch.Mat4Ident
-					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpTo.X), float32(nt.InterpTo.Y + nt.InterpTo.Height), 0)
+					mat.Scale(0.5, 0.5, 1.0).Translate(float32(nt.InterpTo.X), float32(nt.InterpTo.Y), 0)
 					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{0, 1, 0, 1})
 				})
 
@@ -490,15 +493,15 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 
 				inputBuffer := playerData.GetInputBuffer()
 				tBuffer, _ := ecs.Read[NextTransform](world, playerData.Id())
-				collider, _ := ecs.Read[physics.CircleCollider](world, playerData.Id())
-				extPos := tBuffer.PreExtInterpTo.Transform
+				collider, _ := ecs.Read[phy2.CircleCollider](world, playerData.Id())
+				extPos := tBuffer.PreExtInterpTo.Pos
 				for i := range inputBuffer {
 					// for ii := 0; ii < 4; ii++ { // TODO - 4 because we do %4 on send rate
 						mmo.MoveCharacter(&inputBuffer[i].Input, &extPos, &collider, tilemap, mmo.FixedTimeStep)
 					// }
 
 					mat := glitch.Mat4Ident
-					mat.Scale(0.25, 0.25, 1.0).Translate(float32(extPos.X), float32(extPos.Y + extPos.Height), 0)
+					mat.Scale(0.25, 0.25, 1.0).Translate(float32(extPos.X), float32(extPos.Y), 0)
 					debugSprite.DrawColorMask(pass, mat, glitch.RGBA{1, 1, 1, 1})
 				}
 			}
@@ -528,14 +531,14 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					}
 				}
 
-				ecs.Map2(world, func(id ecs.Id, speech *SpeechRender, t *physics.Transform) {
+				ecs.Map2(world, func(id ecs.Id, speech *SpeechRender, pos *phy2.Pos) {
 
 					if speech.RemainingDuration < 0 { return } // Skip the display duration has ended
 					speech.RemainingDuration -= dt
 
 					scale := float32(0.4)
 					mat := glitch.Mat4Ident
-					mat.Scale(scale, scale, 1.0).Translate(float32(t.X), float32(t.Y + t.Height), 0)
+					mat.Scale(scale, scale, 1.0).Translate(float32(pos.X), float32(pos.Y), 0)
 					bounds := speech.Text.Bounds()
 					mat.Translate(scale * (-bounds.W()/2), 15, 0) // TODO - 15 should come from the body height of the character (plus the font descent, or maybe half text line height)
 
