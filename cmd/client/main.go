@@ -17,11 +17,11 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			panic(fmt.Sprintf("could not create CPU profile: ", err))
+			panic(fmt.Sprintf("could not create CPU profile: %v", err))
 		}
 		defer f.Close() // error handling omitted for example
 		if err := pprof.StartCPUProfile(f); err != nil {
-			panic(fmt.Sprintf("could not start CPU profile: ", err))
+			panic(fmt.Sprintf("could not start CPU profile: %v", err))
 		}
 		defer pprof.StopCPUProfile()
 	}
@@ -37,12 +37,12 @@ func main() {
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
 		if err != nil {
-			panic(fmt.Sprintf("could not create memory profile: ", err))
+			panic(fmt.Sprintf("could not create memory profile: %v", err))
 		}
 		defer f.Close() // error handling omitted for example
 		runtime.GC() // get up-to-date statistics
 		if err := pprof.WriteHeapProfile(f); err != nil {
-			panic(fmt.Sprintf("could not write memory profile: ", err))
+			panic(fmt.Sprintf("could not write memory profile: %v", err))
 		}
 	}
 }

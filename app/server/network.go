@@ -250,7 +250,7 @@ func ServeProxyConnection(serverConn *ServerConn, world *ecs.World, networkChann
 			resp := serdes.ClientLoginResp{t.UserId, id}
 			err := serverConn.Send(resp)
 			if err != nil {
-				log.Warn().Err(err).Msg(fmt.Sprintf("Failed to send", resp))
+				log.Warn().Err(err).Msg(fmt.Sprintf("Failed to send: %v", resp))
 			}
 		case serdes.ClientLogout:
 			log.Printf("serdes.ClientLogout: %d", t.UserId)

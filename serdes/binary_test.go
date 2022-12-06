@@ -5,16 +5,17 @@ import (
 	"testing"
 	"reflect"
 
+	"github.com/unitoftime/flow/phy2"
+	"github.com/unitoftime/flow/net"
 
-	"github.com/unitoftime/flow/physics"
-	// "github.com/unitoftime/mmo/game"
+	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/ecs"
 )
 
 func TestMarshalUnmarshal(t *testing.T) {
 	encoder := New()
 
-	// cUnion := NewUnion(physics.Transform{}, physics.Input{}, game.Body{}, game.Speech{})
+	// cUnion := NewUnion(phy2.Pos{}, phy2.Input{}, game.Body{}, game.Speech{})
 
 	{
 		// dat, err := MarshalBinary(ClientLogin{0xAEAE})
@@ -70,13 +71,13 @@ func TestMarshalUnmarshal(t *testing.T) {
 	{
 		// TODO - Seems like the binary package i'm using doesn't work if I don't pass a pointer here. (because I have a pointer receiver on MarshalBinary()
 		// dat, err := MarshalBinary(&WorldUpdate{
-		// t1, err := cUnion.Make(physics.Transform{1,2,3})
+		// t1, err := cUnion.Make(phy2.Pos{1,2,3})
 		// if err != nil { panic(err) }
-		// i1, err := cUnion.Make(physics.Input{})
+		// i1, err := cUnion.Make(phy2.Input{})
 		// if err != nil { panic(err) }
-		// t2, err := cUnion.Make(physics.Transform{4,5,6})
+		// t2, err := cUnion.Make(phy2.Pos{4,5,6})
 		// if err != nil { panic(err) }
-		// i3, err := cUnion.Make(physics.Input{true,true,true,true})
+		// i3, err := cUnion.Make(phy2.Input{true,true,true,true})
 		// if err != nil { panic(err) }
 
 		dat, err := encoder.Marshal(WorldUpdate{
@@ -84,9 +85,9 @@ func TestMarshalUnmarshal(t *testing.T) {
 			PlayerTick: 2222,
 			UserId: 3333,
 			WorldData: map[ecs.Id][]ecs.Component{
-				1: []ecs.Component{ecs.C(physics.Transform{1,2,3}), ecs.C(physics.Input{})},
-				2: []ecs.Component{ecs.C(physics.Transform{4,5,6})},
-				3: []ecs.Component{ecs.C(physics.Input{true,true,true,true})},
+				1: []ecs.Component{ecs.C(phy2.Pos{1,2}), ecs.C(mmo.Input{})},
+				2: []ecs.Component{ecs.C(phy2.Pos{4,5})},
+				3: []ecs.Component{ecs.C(mmo.Input{true,true,true,true})},
 			},
 			// WorldData: map[uint32][]Union{
 			// 	1: []Union{t1, i1},
@@ -179,9 +180,9 @@ func TestConvert(t *testing.T) {
 // 		dat, err := MarshalBinary(&WorldUpdate{
 // 			UserId: 0xAEAEAE,
 // 			WorldData: map[ecs.Id][]ecs.Component{
-// 				1: []ecs.Component{ecs.C(physics.Transform{1,2,3}), ecs.C(physics.Input{})},
-// 				2: []ecs.Component{ecs.C(physics.Transform{4,5,6})},
-// 				3: []ecs.Component{ecs.C(physics.Input{true,true,true,true})},
+// 				1: []ecs.Component{ecs.C(phy2.Pos{1,2,3}), ecs.C(phy2.Input{})},
+// 				2: []ecs.Component{ecs.C(phy2.Pos{4,5,6})},
+// 				3: []ecs.Component{ecs.C(phy2.Input{true,true,true,true})},
 // 			},
 // 			Delete: []ecs.Id{1,2,3,4,5},
 // 			// Messages: []ChatMessage{
@@ -202,9 +203,9 @@ func TestConvert(t *testing.T) {
 // }
 
 func TestBinaryEncodingUnions(t *testing.T) {
-	union := NewUnion(WorldUpdate{}, ClientLogin{}, ClientLoginResp{}, ClientLogout{}, ClientLogoutResp{})
+	union := net.NewUnion(WorldUpdate{}, ClientLogin{}, ClientLoginResp{}, ClientLogout{}, ClientLogoutResp{})
 
-	// cUnion := NewUnion(physics.Transform{}, physics.Input{}, game.Body{}, game.Speech{})
+	// cUnion := NewUnion(phy2.Pos{}, phy2.Input{}, game.Body{}, game.Speech{})
 
 	{
 		// dat, err := MarshalBinary(ClientLogin{0xAEAE})
@@ -260,13 +261,13 @@ func TestBinaryEncodingUnions(t *testing.T) {
 	{
 		// TODO - Seems like the binary package i'm using doesn't work if I don't pass a pointer here. (because I have a pointer receiver on MarshalBinary()
 		// dat, err := MarshalBinary(&WorldUpdate{
-		// t1, err := cUnion.Make(physics.Transform{1,2,3})
+		// t1, err := cUnion.Make(phy2.Pos{1,2,3})
 		// if err != nil { panic(err) }
-		// i1, err := cUnion.Make(physics.Input{})
+		// i1, err := cUnion.Make(phy2.Input{})
 		// if err != nil { panic(err) }
-		// t2, err := cUnion.Make(physics.Transform{4,5,6})
+		// t2, err := cUnion.Make(phy2.Pos{4,5,6})
 		// if err != nil { panic(err) }
-		// i3, err := cUnion.Make(physics.Input{true,true,true,true})
+		// i3, err := cUnion.Make(phy2.Input{true,true,true,true})
 		// if err != nil { panic(err) }
 
 		dat, err := union.Serialize(WorldUpdate{
@@ -274,9 +275,9 @@ func TestBinaryEncodingUnions(t *testing.T) {
 			PlayerTick: 2222,
 			UserId: 3333,
 			WorldData: map[ecs.Id][]ecs.Component{
-				1: []ecs.Component{ecs.C(physics.Transform{1,2,3}), ecs.C(physics.Input{})},
-				2: []ecs.Component{ecs.C(physics.Transform{4,5,6})},
-				3: []ecs.Component{ecs.C(physics.Input{true,true,true,true})},
+				1: []ecs.Component{ecs.C(phy2.Pos{1,2}), ecs.C(mmo.Input{})},
+				2: []ecs.Component{ecs.C(phy2.Pos{4,5})},
+				3: []ecs.Component{ecs.C(mmo.Input{true,true,true,true})},
 			},
 			// WorldData: map[uint32][]Union{
 			// 	1: []Union{t1, i1},
