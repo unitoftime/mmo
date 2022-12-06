@@ -7,5 +7,5 @@ go run ./server &
 sleep 2
 go run ./proxy &
 #sleep 2
-#go run ./client --skip &
+go run ./client --skip &
 go run ./client --skip

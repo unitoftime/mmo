@@ -315,17 +315,12 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *PlayerD
 								mmo.MoveCharacter(&inputBuffer[i].Input, &extrapolatedPos, &collider, tilemap, mmo.FixedTimeStep)
 							// }
 						}
-						transformBuffer.Extrapolation = extrapolatedPos
-						// transformBuffer.ExtrapolationOffset.X = transformBuffer.ExtrapolationOffset.X
-
-						// TODO! - this looks bad when there is high packet loss. This is caused by multiple inputs that the client sends getting compressed into a single tick.
-						// transformBuffer.InterpTo.Transform.X += extrapolatedPos.X
-						// transformBuffer.InterpTo.Transform.Y += extrapolatedPos.X
-						transformBuffer.PreExtInterpTo = transformBuffer.InterpTo
-						// transformBuffer.InterpTo.Transform.X = extrapolatedPos.X
-						// transformBuffer.InterpTo.Transform.Y = extrapolatedPos.Y
-						// log.Print("Extrap: ", extrapolatedPos, transformBuffer.InterpFrom.Transform, transformBuffer.InterpTo.Transform)
 					}
+
+					transformBuffer.PreExtInterpTo = transformBuffer.InterpTo
+					transformBuffer.Extrapolation = extrapolatedPos
+					// transformBuffer.InterpTo.Transform.X = extrapolatedPos.X
+					// transformBuffer.InterpTo.Transform.Y = extrapolatedPos.Y
 				}
 
 				ecs.Write(world, id, ecs.C(transformBuffer))
