@@ -62,7 +62,8 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *PlayerD
 					netPos.PreExtInterpTo = netPos.InterpTo
 					netPos.ExtrapolatedPos = netPos.InterpTo // This will be modified by client-side prediction
 
-					netPos.Total = 64 * time.Millisecond // TODO! - This should be determined by the number of ticks that we are apart times the network tick time!!!
+					// TODO! - This should also be multiplied by the distance between the last and next ticks
+					netPos.Total = time.Duration(mmo.NetworkTickDivider) * mmo.FixedTimeStep
 
 					// Idea: Add like a single frame of time to the total so that we get there a little bit slower. Ideally this would smooth the transitions between frames b/c we'd always lag behind.
 					// netPos.Total = netPos.Total + 32 * time.Millisecond
@@ -78,9 +79,9 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *PlayerD
 						if !ok { return } // Skip if player doesn't have a collider
 
 						for i := range inputBuffer {
-							// for ii := 0; ii < 4; ii++ { // TODO - 4 because we do %4 on send rate
+							for ii := 0; ii < mmo.NetworkTickDivider; ii++ {
 							mmo.MoveCharacter(&inputBuffer[i].Input, &netPos.ExtrapolatedPos, &collider, tilemap, mmo.FixedTimeStep)
-							// }
+							}
 						}
 					}
 				}
@@ -109,10 +110,10 @@ func CreateClientSystems(world *ecs.World, sock *net.Socket, playerData *PlayerD
 var everyOther int
 func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *PlayerData) {
 	// TODO! - Not sure if this is okay
-	// everyOther = (everyOther + 1) % 4
-	// if everyOther != 0 {
-	// 	return // skip
-	// }
+	everyOther = (everyOther + 1) % mmo.NetworkTickDivider
+	if everyOther != 0 {
+		return // skip
+	}
 
 	playerId := playerData.Id()
 	// if clientConn is closed for some reason, then we won't be able to send
@@ -164,7 +165,8 @@ func ClientSendUpdate(world *ecs.World, clientConn *net.Socket, playerData *Play
 	// log.Print(update)
 
 	// Duplicate Sends to counter packet loss
-	for i := 0; i < 4; i++ {
+	// TODO - Maybe make this more intricate, send the last N inputs in one big packet at 1/N the rate
+	for i := 0; i < mmo.ClientInputResendRate; i++ {
 		err := clientConn.Send(update)
 		if err != nil {
 			log.Warn().Err(err).Msg("ClientSendUpdate")
@@ -192,7 +194,7 @@ func ClientReceive(sock *net.Socket, playerData *PlayerData, networkChannel chan
 	bufLen := 100
 	worldUpdateTimes := ds.NewRingBuffer[time.Duration](bufLen)
 	for i := 0; i < bufLen; i++ {
-		worldUpdateTimes.Add(4 * mmo.FixedTimeStep) // TODO! - hardcoded
+		worldUpdateTimes.Add(mmo.NetworkTickDivider * mmo.FixedTimeStep)
 	}
 
 	for {

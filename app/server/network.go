@@ -54,7 +54,7 @@ func (d *DeleteList) CopyAndClear() []ecs.Id {
 var everyOther int
 
 // var lastTime time.Time
-var lastTime4 time.Time
+// var lastTime4 time.Time
 
 var AvgWorldUpdateTime time.Duration
 
@@ -73,7 +73,7 @@ var lastWorldUpdate time.Time
 func ServerSendUpdate(world *ecs.World, server *Server, deleteList *DeleteList) {
 	// log.Print("ServerSendUpdate-LastTime: ", time.Since(lastTime))
 	// lastTime = time.Now()
-	everyOther = (everyOther + 1) % 4
+	everyOther = (everyOther + 1) % mmo.NetworkTickDivider
 	if everyOther != 0 {
 		return // skip
 	}

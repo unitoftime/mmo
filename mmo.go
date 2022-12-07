@@ -18,6 +18,15 @@ type Input struct {
 	Up, Down, Left, Right bool
 }
 
+// This defines the ratio of physics ticks to network ticks.
+// TODO - right now I do a % NetworkTickDivider. It'd be nice to make that more systematic
+const NetworkTickDivider = 4    // The number of physics ticks before we send a network update
+const ClientInputResendRate = 2 // The number of times the client resends his input to counter packet loss
+const ClientDefaultUpdateQueueSize = 2 // TODO - make this dynamic
+
+const FixedTimeStep time.Duration =  16 * time.Millisecond
+
+
 var seed int64 = 12345
 var mapSize int = 100
 var tileSize int = 16
@@ -281,7 +290,6 @@ func CheckCollisions(world *ecs.World) {
 	// })
 }
 
-const FixedTimeStep time.Duration =  16 * time.Millisecond
 func GetScheduler() *ecs.Scheduler {
 	schedule := ecs.NewScheduler()
 	schedule.SetFixedTimeStep(FixedTimeStep)
@@ -334,5 +342,3 @@ func FilterChat(msg string) string {
 		return "[This message was delete by moderator.]"
 	}
 }
-
-

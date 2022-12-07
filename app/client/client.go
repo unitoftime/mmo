@@ -199,6 +199,7 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 	if err != nil {
 		panic(err)
 	}
+	sock.Packetloss = 0.0
 
 	// Note: This requires a system to update the framebuffer if the window is resized. The system should essentially recreate the framebuffer with the new dimensions, This might be a good target for the framebuffer callback, but for now I'm just going to poll win.Bounds
 	renderBounds := win.Bounds()
@@ -338,10 +339,9 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 			}
 		}},
 		ecs.System{"SetAnimationFromState", func(dt time.Duration) {
-			// playerId := playerData.Id()
-			// playerPhyT, _ := ecs.Read[phy2.Transform](world, playerId)
-
 			ecs.Map2(world, func(id ecs.Id, pos *phy2.Pos, netPos *NetPos) {
+				// Option 1
+/*
 				netPos.Remaining -= dt
 
 				interpFactor := 1 - (netPos.Remaining.Seconds() / netPos.Total.Seconds())
@@ -349,18 +349,25 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 					interpFactor = 1
 				}
 
+
 				// Lerp the InterpTo point to the extrapolated point
-				// iFactor := 0.1
-				// netPos.InterpTo.X = interp.Linear.Float64(netPos.InterpTo.X, netPos.ExtrapolatedPos.X, iFactor)
-				// netPos.InterpTo.Y = interp.Linear.Float64(netPos.InterpTo.Y, netPos.ExtrapolatedPos.Y, iFactor)
-				netPos.InterpTo = netPos.ExtrapolatedPos
+				iFactor := 0.1
+				netPos.InterpTo.X = interp.Linear.Float64(netPos.InterpTo.X, netPos.ExtrapolatedPos.X, iFactor)
+				netPos.InterpTo.Y = interp.Linear.Float64(netPos.InterpTo.Y, netPos.ExtrapolatedPos.Y, iFactor)
+				// netPos.InterpTo = netPos.ExtrapolatedPos
 
 				// Lerp the entity
 				pos.X = interp.Linear.Float64(netPos.InterpFrom.X, netPos.InterpTo.X, interpFactor)
 				pos.Y = interp.Linear.Float64(netPos.InterpFrom.Y, netPos.InterpTo.Y, interpFactor)
+*/
+
+				// Option 2 - Looks way better
+				interpFactor := 0.1 // TODO - Could this dynamically scale based on connection quality?
+				pos.X = interp.Linear.Float64(pos.X, netPos.ExtrapolatedPos.X, interpFactor)
+				pos.Y = interp.Linear.Float64(pos.Y, netPos.ExtrapolatedPos.Y, interpFactor)
 			})
 
-			minAnim := 2.0
+			minAnim := 2.0 //TODO - hardcoded
 			ecs.Map4(world, func(id ecs.Id, input *mmo.Input, anim *Animation, pos *phy2.Pos, netPos *NetPos) {
 				if input.Left && !input.Right {
 					anim.Direction = "left"
@@ -490,9 +497,9 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 				collider, _ := ecs.Read[phy2.CircleCollider](world, playerData.Id())
 				extPos := netPos.PreExtInterpTo
 				for i := range inputBuffer {
-					// for ii := 0; ii < 4; ii++ { // TODO - 4 because we do %4 on send rate
+					for ii := 0; ii < mmo.NetworkTickDivider; ii++ {
 						mmo.MoveCharacter(&inputBuffer[i].Input, &extPos, &collider, tilemap, mmo.FixedTimeStep)
-					// }
+					}
 
 					mat := glitch.Mat4Ident
 					mat.Scale(0.25, 0.25, 1.0).Translate(float32(extPos.X), float32(extPos.Y), 0)
@@ -614,6 +621,18 @@ func runGame(win *glitch.Window, load *asset.Load, spritesheet *asset.Spriteshee
 						if strings.HasPrefix(textInputString, "/") {
 							if strings.HasPrefix(textInputString, "/debug") {
 								debugMode = !debugMode
+							} else if strings.HasPrefix(textInputString, "/sim i") {
+								sock.Packetloss = 0.15
+								// sock.MinDelay = 160 * time.Millisecond
+								// sock.MaxDelay = 240 * time.Millisecond
+							} else if strings.HasPrefix(textInputString, "/sim l") {
+								sock.Packetloss = 0.05
+								// sock.MinDelay = 25 * time.Millisecond
+								// sock.MaxDelay = 50 * time.Millisecond
+							} else if strings.HasPrefix(textInputString, "/sim n") {
+								sock.Packetloss = 0.0
+								// sock.MinDelay = 0
+								// sock.MaxDelay = 0
 							}
 						} else {
 							// Write the player's speech bubble

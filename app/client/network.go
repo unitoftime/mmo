@@ -3,10 +3,10 @@ package client
 import (
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/zyedidia/generic/queue"
 	"github.com/unitoftime/ecs"
 
+	"github.com/unitoftime/mmo"
 	"github.com/unitoftime/mmo/serdes"
 )
 
@@ -36,37 +36,38 @@ func ClientPollNetworkSystem(networkChannel chan serdes.WorldUpdate,
 
 func ClientPullFromUpdateQueue(world *ecs.World, updateQueue *queue.Queue[serdes.WorldUpdate], playerData *PlayerData) ecs.System {
 	// TODO! - dynamic based on connection
-	targetQueueSize := 3
+	targetQueueSize := mmo.ClientDefaultUpdateQueueSize
 
 	var everyOther int
 
 	// Read a single element from the update queue
 	sys := ecs.System{"PullUpdateQueue", func(dt time.Duration) {
-		//TODO! - IMPORTANT If I pull out like tick 100, then next tick 102, I know that those should be (2 * 64ms) apart and not 64 ms apart. I somehow need to fix that problem for when dropped packets are recv'ed. Or I need to split the difference and enqueue another thing
-		everyOther = (everyOther + 1) % 4
-		if everyOther != 0 {
-			return // skip
+		if targetQueueSize > 0 {
+			//TODO! - IMPORTANT If I pull out like tick 100, then next tick 102, I know that those should be (2 * 64ms) apart and not 64 ms apart. I somehow need to fix that problem for when dropped packets are recv'ed. Or I need to split the difference and enqueue another thing
+			everyOther = (everyOther + 1) % mmo.NetworkTickDivider
+			if everyOther != 0 {
+				return // skip
+			}
+
+			// // TODO - keep track of size
+			queueSize := 0
+			updateQueue.Each(func(u serdes.WorldUpdate) {
+				queueSize++
+			})
+			if queueSize > targetQueueSize {
+				// log.Print("UpdateQueue Desynchronization (TooBig): ", queueSize, targetQueueSize)
+				// We want the next tick to run a little bit faster.
+				// TODO - Optimization Note: The bigger you make the addition, the faster it gets back to target length, but the more dramatic the entity needs to be sped up to interp that distance. I could also change the %4 to %8 to make the speedup even more minimal. Right now this doesn't seem to noticeable
+				everyOther = (everyOther + 1) % mmo.NetworkTickDivider
+			}//  else if queueSize < targetQueueSize {
+			// 	log.Print("UpdateQueue Desynchronization (TooSmall): ", queueSize, targetQueueSize)
+			// 	everyOther = (everyOther + 3) % mmo.NetworkTickDivider // Go back one and rerun
+			// 	return
+			// }
+			// log.Print("UpdateQueueSize: ", queueSize)
 		}
 
-		// // TODO - keep track of size
-		queueSize := 0
-		updateQueue.Each(func(u serdes.WorldUpdate) {
-			queueSize++
-		})
-		if queueSize > targetQueueSize {
-			// log.Print("UpdateQueue Desynchronization (TooBig): ", queueSize, targetQueueSize)
-			// We want the next tick to run a little bit faster.
-			// TODO - Optimization Note: The bigger you make the addition, the faster it gets back to target length, but the more dramatic the entity needs to be sped up to interp that distance. I could also change the %4 to %8 to make the speedup even more minimal. Right now this doesn't seem to noticeable
-			everyOther = (everyOther + 1) % 4
-		}//  else if queueSize < targetQueueSize {
-		// 	log.Print("UpdateQueue Desynchronization (TooSmall): ", queueSize, targetQueueSize)
-		// 	everyOther = (everyOther + 3) % 4 // Go back one and rerun
-		// 	return
-		// }
-		// log.Print("UpdateQueueSize: ", queueSize)
-
 		if updateQueue.Empty() {
-			log.Print("UpdateQueue is Empty!")
 			return
 		}
 
