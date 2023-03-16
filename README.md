@@ -1,3 +1,9 @@
+`Note: I decided to try and turn this into a full-fledge game. Because of that, I started putting the gameplay part of the project in a private repository and stopped adding to this repository. I do still want to open source as much of my code as I can (without giving away the entire project), so I have several other open source repos that I moved a lot of code to:`
+1. `github.com/unitoftime/glitch` - Rendering
+2. `github.com/unitoftime/flow` - General game components features
+3. `github.com/unitoftime/ecs` - ECS framework
+4. You can also go here to see the repositories I have in my profile: [https://github.com/unitoftime](https://github.com/unitoftime)
+
 ### Welcome!
 If you are here, then you may have come from my tutorial series on YouTube. If not, you can go check it out:
 * [YouTube Playlist](https://www.youtube.com/playlist?list=PL_r0j2F4Hkj8KZ6jNJPCW3aDH--aWrn-T)
